@@ -134,7 +134,8 @@ export default function Home() {
         setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       }
     } catch (err) {
-      setError(err.message || String(err));
+      const message = err instanceof Error ? `${err.message}\n\n${err.stack}` : String(err);
+      setError(message);
     }
   };
 
