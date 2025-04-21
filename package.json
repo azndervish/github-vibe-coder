@@ -8,7 +8,7 @@
     "start": "next start",
     "export": "next export",
     "s3-build": "NODE_ENV=development next build && next export"
-  }
+  },
   "dependencies": {
     "next": "13.4.12",
     "react": "18.2.0",
