@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -6,6 +6,26 @@ export default function Home() {
   const [openaiKey, setOpenaiKey] = useState('');
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+
+  // Load from localStorage on first render
+  useEffect(() => {
+    setGithubRepo(localStorage.getItem('githubRepo') || '');
+    setGithubKey(localStorage.getItem('githubKey') || '');
+    setOpenaiKey(localStorage.getItem('openaiKey') || '');
+  }, []);
+
+  // Save to localStorage when values change
+  useEffect(() => {
+    localStorage.setItem('githubRepo', githubRepo);
+  }, [githubRepo]);
+
+  useEffect(() => {
+    localStorage.setItem('githubKey', githubKey);
+  }, [githubKey]);
+
+  useEffect(() => {
+    localStorage.setItem('openaiKey', openaiKey);
+  }, [openaiKey]);
 
   const fetchRepoFileList = async (repoUrl, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
@@ -75,4 +95,4 @@ export default function Home() {
       </div>
     </div>
   );
-}
+            }
