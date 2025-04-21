@@ -131,6 +131,11 @@ export default function Home() {
           });
 
           const finalData = await finalRes.json();
+          if (!finalData.choices) {
+            throw new Error(
+             `OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`
+            );
+          }
           const reply = finalData.choices[0].message.content;
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
         }
