@@ -77,7 +77,8 @@ export default function Home() {
 
       const fileList = await fetchRepoFileList(githubRepo, githubKey);
       const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
-      const modelId = "o4-mini-2025-04-16";
+      //const modelId = "o4-mini-2025-04-16";
+      const modelId = "gpt-4o-2024-08-06";
       const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
