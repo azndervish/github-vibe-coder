@@ -77,7 +77,7 @@ export default function Home() {
 
       const fileList = await fetchRepoFileList(githubRepo, githubKey);
       const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
-
+      const modelId = "o4-mini-2025-04-16";
       const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -85,7 +85,7 @@ export default function Home() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo-0613',
+          model: modelId,
           messages: [
             { role: 'system', content: 'You are a helpful coding assistant.' },
             { role: 'user', content: `${fileListPrompt}\n\n${input}` }
@@ -116,7 +116,7 @@ export default function Home() {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              model: 'gpt-3.5-turbo-0613',
+              model: modelId,
               messages: [
                 { role: 'system', content: 'You are a helpful coding assistant.' },
                 { role: 'user', content: `${fileListPrompt}\n\n${input}` },
