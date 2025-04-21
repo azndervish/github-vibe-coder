@@ -23,6 +23,7 @@ export default function Home() {
   const [openaiKey, setOpenaiKey] = useState('');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -57,7 +58,7 @@ export default function Home() {
       headers: { Authorization: `token ${token}` },
     });
 
-    if (!res.ok) return `Error reading ${filePath}: ${res.status}`;
+    if (!res.ok) throw new Error(`Error reading ${filePath}: ${res.status} ${res.statusText}`);
 
     const data = await res.json();
     if (data.encoding === 'base64') {
@@ -68,67 +69,72 @@ export default function Home() {
   };
 
   const sendMessage = async () => {
-    const userMsg = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
+    try {
+      setError(null);
+      const userMsg = { role: 'user', content: input };
+      setMessages(prev => [...prev, userMsg]);
+      setInput('');
 
-    const fileList = await fetchRepoFileList(githubRepo, githubKey);
-    const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
+      const fileList = await fetchRepoFileList(githubRepo, githubKey);
+      const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
 
-    const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo-0613',
-        messages: [
-          { role: 'system', content: 'You are a helpful coding assistant.' },
-          { role: 'user', content: `${fileListPrompt}\n\n${input}` }
-        ],
-        functions: functions
-      })
-    });
+      const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo-0613',
+          messages: [
+            { role: 'system', content: 'You are a helpful coding assistant.' },
+            { role: 'user', content: `${fileListPrompt}\n\n${input}` }
+          ],
+          functions: functions
+        })
+      });
 
-    const initialData = await initialRes.json();
-    const message = initialData.choices[0].message;
+      const initialData = await initialRes.json();
+      const message = initialData.choices[0].message;
 
-    if (message.function_call) {
-      const functionName = message.function_call.name;
-      const functionArgs = JSON.parse(message.function_call.arguments);
+      if (message.function_call) {
+        const functionName = message.function_call.name;
+        const functionArgs = JSON.parse(message.function_call.arguments);
 
-      if (functionName === 'get_file_content') {
-        const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
+        if (functionName === 'get_file_content') {
+          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
 
-        const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'gpt-3.5-turbo-0613',
-            messages: [
-              { role: 'system', content: 'You are a helpful coding assistant.' },
-              { role: 'user', content: `${fileListPrompt}\n\n${input}` },
-              message,
-              {
-                role: 'function',
-                name: functionName,
-                content: fileContent
-              }
-            ]
-          })
-        });
+          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'gpt-3.5-turbo-0613',
+              messages: [
+                { role: 'system', content: 'You are a helpful coding assistant.' },
+                { role: 'user', content: `${fileListPrompt}\n\n${input}` },
+                message,
+                {
+                  role: 'function',
+                  name: functionName,
+                  content: fileContent
+                }
+              ]
+            })
+          });
 
-        const finalData = await finalRes.json();
-        const reply = finalData.choices[0].message.content;
+          const finalData = await finalRes.json();
+          const reply = finalData.choices[0].message.content;
+          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        }
+      } else {
+        const reply = message.content;
         setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       }
-    } else {
-      const reply = message.content;
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+    } catch (err) {
+      setError(err.message || String(err));
     }
   };
 
@@ -169,6 +175,12 @@ export default function Home() {
         style={{ width: '100%', marginTop: '1rem' }}
       />
       <button onClick={sendMessage} style={{ marginTop: '0.5rem' }}>Send</button>
+
+      {error && (
+        <div style={{ backgroundColor: '#fee', color: '#900', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
     </div>
   );
 }
