@@ -4,7 +4,7 @@ stages:
 
 variables:
   AWS_DEFAULT_REGION: us-east-1
-  S3_BUCKET_NAME: <YOUR_BUCKET_NAME>
+  S3_BUCKET_NAME: github-vibe-coder
 
 cache:
   paths:
