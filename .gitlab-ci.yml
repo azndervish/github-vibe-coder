@@ -1,0 +1,29 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  AWS_DEFAULT_REGION: us-east-1
+  S3_BUCKET_NAME: <YOUR_BUCKET_NAME>
+
+cache:
+  paths:
+    - node_modules/
+
+build:
+  stage: build
+  image: node:18
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - out/
+
+deploy:
+  stage: deploy
+  image: amazon/aws-cli
+  script:
+    - aws s3 sync out/ s3://$S3_BUCKET_NAME --delete
+  only:
+    - main
