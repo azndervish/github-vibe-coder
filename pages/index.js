@@ -1,6 +1,4 @@
 import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -25,7 +23,7 @@ export default function Home() {
 
     const fileList = await fetchRepoFileList(githubRepo, githubKey);
 
-    // Simulate a call to OpenAI
+    // Simulate OpenAI response
     const botReply = `You asked: "${input}". I found ${fileList.length} files in the repo.`;
 
     setMessages(prev => [...prev, { role: 'assistant', content: botReply }]);
@@ -33,24 +31,44 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 flex flex-col">
-      <Card className="mb-4 p-4">
-        <CardContent className="flex flex-col gap-2">
-          <Input placeholder="GitHub Repo URL" value={githubRepo} onChange={e => setGithubRepo(e.target.value)} />
-          <Input placeholder="GitHub API Key" type="password" value={githubKey} onChange={e => setGithubKey(e.target.value)} />
-          <Input placeholder="OpenAI API Key" type="password" value={openaiKey} onChange={e => setOpenaiKey(e.target.value)} />
-        </CardContent>
-      </Card>
+      <div className="bg-white shadow-md rounded p-4 mb-4 space-y-2">
+        <input
+          className="w-full p-2 border rounded"
+          placeholder="GitHub Repo URL"
+          value={githubRepo}
+          onChange={e => setGithubRepo(e.target.value)}
+        />
+        <input
+          className="w-full p-2 border rounded"
+          placeholder="GitHub API Key"
+          type="password"
+          value={githubKey}
+          onChange={e => setGithubKey(e.target.value)}
+        />
+        <input
+          className="w-full p-2 border rounded"
+          placeholder="OpenAI API Key"
+          type="password"
+          value={openaiKey}
+          onChange={e => setOpenaiKey(e.target.value)}
+        />
+      </div>
 
-      <div className="flex-1 overflow-auto mb-4">
+      <div className="flex-1 overflow-auto mb-4 space-y-2">
         {messages.map((msg, i) => (
-          <div key={i} className={`p-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+          <div key={i} className={`p-2 rounded ${msg.role === 'user' ? 'bg-blue-100 text-right' : 'bg-gray-200 text-left'}`}>
             <strong>{msg.role}:</strong> {msg.content}
           </div>
         ))}
       </div>
 
       <div className="flex gap-2">
-        <Input className="flex-1" value={input} onChange={e => setInput(e.target.value)} placeholder="Ask something..." />
+        <input
+          className="flex-1 p-2 border rounded"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Ask something..."
+        />
         <button onClick={sendMessage} className="bg-blue-500 text-white px-4 py-2 rounded">
           Send
         </button>
