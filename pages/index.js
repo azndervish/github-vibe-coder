@@ -37,17 +37,32 @@ export default function Home() {
     return data.tree?.filter(item => item.type === 'blob').map(item => item.path) || [];
   };
 
-  const sendMessage = async () => {
-    setMessages([...messages, { role: 'user', content: input }]);
-    setInput('');
+const sendMessage = async () => {
+  const userMsg = { role: 'user', content: input };
+  setMessages(prev => [...prev, userMsg]);
+  setInput('');
 
-    const fileList = await fetchRepoFileList(githubRepo, githubKey);
+  const fileList = await fetchRepoFileList(githubRepo, githubKey);
 
-    // Simulate OpenAI response
-    const botReply = `You asked: "${input}". I found ${fileList.length} files in the repo.`;
+  const prompt = `Here's all the files in a repository:\n${fileList.join('\n')}\n\nWhen working on the user prompt, first figure out which file they're referring to, open it up, then work on the user's prompt.\n\n${input}`;
 
-    setMessages(prev => [...prev, { role: 'assistant', content: botReply }]);
-  };
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'system', content: 'You are a helpful coding assistant.' }, { role: 'user', content: prompt }],
+    })
+  });
+
+  const data = await res.json();
+  const reply = data.choices?.[0]?.message?.content || 'Sorry, something went wrong.';
+
+  setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+};
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 flex flex-col">
