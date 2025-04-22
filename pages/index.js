@@ -102,33 +102,45 @@ export default function Home() {
 
   const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;  // Add branch reference here
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
 
-    const getRes = await fetch(fileUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-    const getData = await getRes.json();
+    try {
+      // Attempt to retrieve the file details to get the SHA
+      const getRes = await fetch(fileUrl, {
+        headers: { Authorization: `token ${token}` },
+      });
 
-    if (!getRes.ok) {
-      throw new Error(`Failed to fetch file ${filePath}: ${getRes.status} ${getRes.statusText}`);
-    }
+      const getData = getRes.ok ? await getRes.json() : null;
+      const sha = getData ? getData.sha : null;
 
-    const res = await fetch(fileUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `token ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      // Create the request body
+      const body = JSON.stringify({
         message: commitMessage,
         content: btoa(newContent),
-        sha: getData.sha,
+        // Include the SHA only if the file already exists
+        ...sha && { sha },
         branch: branch,
-      }),
-    });
+      });
 
-    if (!res.ok) {
-      throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
+      // Send the request to commit the file
+      const res = await fetch(fileUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `token ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: body,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
+        console.error(`The file ${filePath} does not exist, creating a new file.`);
+      } else {
+        throw error;
+      }
     }
   };
 
