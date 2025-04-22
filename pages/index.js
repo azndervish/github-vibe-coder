@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const functions = [
+const tools = [
   {
     name: "get_file_content",
     description: "Retrieve the content of a specific file from a GitHub repository.",
@@ -159,7 +159,7 @@ export default function Home() {
         body: JSON.stringify({
           model: modelId,
           messages: updatedHistory,
-          functions: functions
+          tools: tools
         })
       });
 
@@ -170,30 +170,30 @@ export default function Home() {
 
       const message = initialData.choices[0].message;
 
-      if (message.function_call) {
-        const { name: functionName, arguments: functionArgsRaw } = message.function_call;
-        const functionArgs = JSON.parse(functionArgsRaw);
+      if (message.tool_call) {
+        const { name: toolName, arguments: toolArgsRaw } = message.tool_call;
+        const toolArgs = JSON.parse(toolArgsRaw);
         const timestamp = new Date().toLocaleTimeString();
 
         setMessages(prev => [
           ...prev,
           {
-            role: 'function',
-            content: `Function called: ${functionName} @ ${timestamp}\nArguments:\n${Object.entries(functionArgs)
-              .filter(([key]) => functionName === 'commit_file' ? key !== 'new_content' : true)
+            role: 'tool',
+            content: `Tool called: ${toolName} @ ${timestamp}\nArguments:\n${Object.entries(toolArgs)
+              .filter(([key]) => toolName === 'commit_file' ? key !== 'new_content' : true)
               .map(([key, value]) => `${key}: ${value}`)
               .join('\n')}`
           }
         ]);
 
-        if (functionName === 'get_file_content') {
-          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
-          const functionMsg = {
-            role: 'function',
-            name: functionName,
+        if (toolName === 'get_file_content') {
+          const fileContent = await fetchFileContent(githubRepo, toolArgs.file_path, githubKey);
+          const toolMsg = {
+            role: 'tool',
+            name: toolName,
             content: fileContent
           };
-          const finalHistory = [...updatedHistory, message, functionMsg];
+          const finalHistory = [...updatedHistory, message, toolMsg];
 
           const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -214,18 +214,18 @@ export default function Home() {
           const reply = finalData.choices[0].message.content;
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
           setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
-        } else if (functionName === 'commit_file') {
+        } else if (toolName === 'commit_file') {
           await commitAndPushFile(
             githubRepo,
-            functionArgs.file_path,
-            functionArgs.new_content,
-            functionArgs.commit_message,
+            toolArgs.file_path,
+            toolArgs.new_content,
+            toolArgs.commit_message,
             githubKey
           );
           setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
           setChatHistory(updatedHistory.concat(message, {
-            role: 'function',
-            name: functionName,
+            role: 'tool',
+            name: toolName,
             content: 'File committed successfully.'
           }, {
             role: 'assistant',
