@@ -1,44 +1,5 @@
 import { useEffect, useState } from 'react';
 
-const functions = [
-  {
-    name: "get_file_content",
-    description: "Retrieve the content of a specific file from a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file within the repository (e.g., 'src/app.js')."
-        }
-      },
-      required: ["file_path"]
-    }
-  },
-  {
-    name: "commit_file",
-    description: "Commit and push changes to a specific file in a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file being updated."
-        },
-        new_content: {
-          type: "string",
-          description: "The updated content of the file."
-        },
-        commit_message: {
-          type: "string",
-          description: "A short message describing the change."
-        }
-      },
-      required: ["file_path", "new_content", "commit_message"]
-    }
-  }
-];
-
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
   const [githubKey, setGithubKey] = useState('');
@@ -150,7 +111,6 @@ export default function Home() {
         body: JSON.stringify({
           model: modelId,
           messages: updatedHistory,
-          functions: functions
         })
       });
 
@@ -161,73 +121,10 @@ export default function Home() {
 
       const message = initialData.choices[0].message;
 
-      if (message.function_call) {
-        const { name: functionName, arguments: functionArgsRaw } = message.function_call;
-        const functionArgs = JSON.parse(functionArgsRaw);
-        const timestamp = new Date().toLocaleTimeString();
+      const reply = message.content;
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      setChatHistory(updatedHistory.concat({ role: 'assistant', content: reply }));
 
-        setMessages(prev => [
-          ...prev,
-          {
-            role: 'function',
-            content: `Function called: ${functionName} @ ${timestamp}\nArguments:\n${Object.entries(functionArgs)
-              .filter(([key]) => functionName === 'commit_file' ? key !== 'new_content' : true)
-              .map(([key, value]) => `${key}: ${value}`)
-              .join('\n')}`
-          }
-        ]);
-
-        if (functionName === 'get_file_content') {
-          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
-          const functionMsg = {
-            role: 'function',
-            name: functionName,
-            content: fileContent
-          };
-          const finalHistory = [...updatedHistory, message, functionMsg];
-
-          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: modelId,
-              messages: finalHistory,
-            })
-          });
-
-          const finalData = await finalRes.json();
-          if (!finalData.choices) {
-            throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`);
-          }
-          const reply = finalData.choices[0].message.content;
-          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-          setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
-        } else if (functionName === 'commit_file') {
-          await commitAndPushFile(
-            githubRepo,
-            functionArgs.file_path,
-            functionArgs.new_content,
-            functionArgs.commit_message,
-            githubKey
-          );
-          setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
-          setChatHistory(updatedHistory.concat(message, {
-            role: 'function',
-            name: functionName,
-            content: 'File committed successfully.'
-          }, {
-            role: 'assistant',
-            content: 'File committed successfully.'
-          }));
-        }
-      } else {
-        const reply = message.content;
-        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-        setChatHistory(updatedHistory.concat({ role: 'assistant', content: reply }));
-      }
     } catch (err) {
       const message = err instanceof Error
         ? `${err.message}\n\n${err.stack}`
@@ -237,45 +134,57 @@ export default function Home() {
   };
 
   return (
-    <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
-      <h1 style={{ fontWeight: 'bold' }}>Vibe Code Assistant</h1>
+    <div className="min-h-screen bg-gray-900 text-white p-4 font-sans">
+      <h1 className="text-3xl font-bold mb-4">Vibe Code Assistant</h1>
+
       <input
         placeholder="GitHub Repo URL"
         value={githubRepo}
         onChange={e => setGithubRepo(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+        className="block w-full mb-2 p-2 bg-gray-800 text-white border border-gray-700 rounded"
       />
+
       <input
         placeholder="GitHub API Key"
         type="password"
         value={githubKey}
         onChange={e => setGithubKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+        className="block w-full mb-2 p-2 bg-gray-800 text-white border border-gray-700 rounded"
       />
+
       <input
         placeholder="OpenAI API Key"
         type="password"
         value={openaiKey}
         onChange={e => setOpenaiKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+        className="block w-full mb-2 p-2 bg-gray-800 text-white border border-gray-700 rounded"
       />
-      <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
+
+      <div className="border border-gray-700 bg-gray-800 p-4 rounded mb-4 overflow-y-scroll h-64">
         {messages.map((m, i) => (
-          <div key={i} style={{ marginBottom: '1rem' }}>
-            <strong>{m.role}:</strong> <pre style={{ whiteSpace: 'pre-wrap' }}>{m.content}</pre>
+          <div key={i} className="mb-3">
+            <strong className="block">{m.role}:</strong>
+            <pre className="whitespace-pre-wrap">{m.content}</pre>
           </div>
         ))}
       </div>
+
       <textarea
         rows={3}
         value={input}
         onChange={e => setInput(e.target.value)}
-        style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+        className="w-full p-2 mb-2 bg-gray-800 text-white border border-gray-700 rounded"
       />
-      <button onClick={sendMessage} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
+
+      <button
+        onClick={sendMessage}
+        className="mt-2 bg-teal-600 text-white py-2 px-4 rounded hover:bg-teal-500"
+      >
+        Send
+      </button>
 
       {error && (
-        <div style={{ backgroundColor: '#ff4d4d', color: '#ffffff', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
+        <div className="bg-red-600 text-white p-4 mt-4 rounded">
           <strong>Error:</strong> {error}
         </div>
       )}
