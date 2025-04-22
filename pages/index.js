@@ -243,6 +243,9 @@ export default function Home() {
             throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`);
           }
           const reply = finalData.choices[0].message.content;
+          const finalTokenUsage = finalData.usage.total_tokens || 0;
+          setTotalTokens((prev) => prev + finalTokenUsage);
+
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
           setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
         } else if (functionName === 'commit_file') {
