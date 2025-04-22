@@ -301,9 +301,8 @@ export default function Home() {
         </div>
       )}
 
-      <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#333333', color: '#cccccc' }}>
-        <div><strong>Branch:</strong> {branchEnv}</div>
-        <div><strong>Commit Hash:</strong> {commitHashEnv}</div>
+      <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
+        {branchEnv} ({commitHashEnv?.substring(0, 6)})
       </div>
     </div>
   );
