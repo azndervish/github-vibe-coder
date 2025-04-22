@@ -1,5 +1,44 @@
 import { useEffect, useState } from 'react';
 
+const functions = [
+  {
+    name: "get_file_content",
+    description: "Retrieve the content of a specific file from a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file within the repository (e.g., 'src/app.js')."
+        }
+      },
+      required: ["file_path"]
+    }
+  },
+  {
+    name: "commit_file",
+    description: "Commit and push changes to a specific file in a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file being updated."
+        },
+        new_content: {
+          type: "string",
+          description: "The updated content of the file."
+        },
+        commit_message: {
+          type: "string",
+          description: "A short message describing the change."
+        }
+      },
+      required: ["file_path", "new_content", "commit_message"]
+    }
+  }
+];
+
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
   const [githubKey, setGithubKey] = useState('');
@@ -10,20 +49,21 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
-  const [modelId, setModelId] = useState('gpt-4o-2024-08-06');
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
     const storedGitHubKey = localStorage.getItem('githubKey');
     const storedOpenAIKey = localStorage.getItem('openaiKey');
     const storedBranch = localStorage.getItem('branch');
-    const storedModelId = localStorage.getItem('modelId');
 
     if (storedRepo) setGithubRepo(storedRepo);
     if (storedGitHubKey) setGithubKey(storedGitHubKey);
     if (storedOpenAIKey) setOpenaiKey(storedOpenAIKey);
-    if (storedBranch) setBranch(storedBranch);
-    if (storedModelId) setModelId(storedModelId);
+    if (storedBranch) {
+      setBranch(storedBranch);
+    } else {
+      setBranch('main');
+    }
   }, []);
 
   useEffect(() => {
@@ -31,8 +71,7 @@ export default function Home() {
     localStorage.setItem('githubKey', githubKey);
     localStorage.setItem('openaiKey', openaiKey);
     localStorage.setItem('branch', branch);
-    localStorage.setItem('modelId', modelId);
-  }, [githubRepo, githubKey, openaiKey, branch, modelId]);
+  }, [githubRepo, githubKey, openaiKey, branch]);
 
   const fetchRepoFileList = async (repoUrl, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
@@ -100,6 +139,163 @@ export default function Home() {
 
       let fileListPrompt = '';
       if (isFirstSend) {
+        const fileList = await fetchRepoFileList(githubRepo, githubKey);
+        fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
+        const systemPrompt = { role: 'system', content: 'You are a helpful coding assistant.' };
+        const fileListMessage = { role: 'user', content: fileListPrompt };
+
+        updatedHistory = [systemPrompt, fileListMessage, userMsg];
+        setMessages(prev => [...prev, { role: 'system', content: fileListPrompt }]);
+        setIsFirstSend(false);
+      }
+
+      const modelId = "gpt-4o-2024-08-06";
+      const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: updatedHistory,
+          functions: functions
+        })
+      });
+
+      const initialData = await initialRes.json();
+      if (!initialData.choices) {
+        throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(initialData, null, 2)}`);
+      }
+
+      const message = initialData.choices[0].message;
+
+      if (message.function_call) {
+        const { name: functionName, arguments: functionArgsRaw } = message.function_call;
+        const functionArgs = JSON.parse(functionArgsRaw);
+        const timestamp = new Date().toLocaleTimeString();
+
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'function',
+            content: `Function called: ${functionName} @ ${timestamp}\nArguments:\n${Object.entries(functionArgs)
+              .filter(([key]) => functionName === 'commit_file' ? key !== 'new_content' : true)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join('\n')}`
+          }
+        ]);
+
+        if (functionName === 'get_file_content') {
+          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
+          const functionMsg = {
+            role: 'function',
+            name: functionName,
+            content: fileContent
+          };
+          const finalHistory = [...updatedHistory, message, functionMsg];
+
+          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: modelId,
+              messages: finalHistory,
+            })
+          });
+
+          const finalData = await finalRes.json();
+          if (!finalData.choices) {
+            throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`);
+          }
+          const reply = finalData.choices[0].message.content;
+          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+          setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
+        } else if (functionName === 'commit_file') {
+          await commitAndPushFile(
+            githubRepo,
+            functionArgs.file_path,
+            functionArgs.new_content,
+            functionArgs.commit_message,
+            githubKey
+          );
+          setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
+          setChatHistory(updatedHistory.concat(message, {
+            role: 'function',
+            name: functionName,
+            content: 'File committed successfully.'
+          }, {
+            role: 'assistant',
+            content: 'File committed successfully.'
+          }));
+        }
+      } else {
+        const reply = message.content;
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        setChatHistory(updatedHistory.concat({ role: 'assistant', content: reply }));
+      }
+    } catch (err) {
+      const message = err instanceof Error
+        ? `${err.message}\n\n${err.stack}`
+        : JSON.stringify(err, null, 2);
+      setError(message);
+    }
+  };
+
+  return (
+    <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
+      <input
+        placeholder="GitHub Repo URL"
+        value={githubRepo}
+        onChange={e => setGithubRepo(e.target.value)}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      />
+      <input
+        placeholder="GitHub API Key"
+        type="password"
+        value={githubKey}
+        onChange={e => setGithubKey(e.target.value)}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      />
+      <input
+        placeholder="OpenAI API Key"
+        type="password"
+        value={openaiKey}
+        onChange={e => setOpenaiKey(e.target.value)}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      />
+      <input
+        placeholder="Branch"
+        value={branch}
+        onChange={e => setBranch(e.target.value)}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      />
+      <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ marginBottom: '1rem' }}>
+            <strong>{m.role}:</strong> <pre style={{ whiteSpace: 'pre-wrap' }}>{m.content}</pre>
+          </div>
+        ))}
+      </div>
+      <textarea
+        rows={3}
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      />
+      <button onClick={sendMessage} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
+
+      {error && (
+        <div style={{ backgroundColor: '#ff4d4d', color: '#ffffff', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+    </div>
+  );
+}
         const fileList = await fetchRepoFileList(githubRepo, githubKey);
         fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
         const systemPrompt = { role: 'system', content: 'You are a helpful coding assistant.' };
@@ -262,48 +458,3 @@ export default function Home() {
     </div>
   );
 }
-
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "get_file_content",
-      description: "Retrieve the content of a specific file from a GitHub repository.",
-      parameters: {
-        type: "object",
-        properties: {
-          file_path: {
-            type: "string",
-            description: "The path to the file within the repository (e.g., 'src/app.js')."
-          }
-        },
-        required: ["file_path"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "commit_file",
-      description: "Commit and push changes to a specific file in a GitHub repository.",
-      parameters: {
-        type: "object",
-        properties: {
-          file_path: {
-            type: "string",
-            description: "The path to the file being updated."
-          },
-          new_content: {
-            type: "string",
-            description: "The updated content of the file."
-          },
-          commit_message: {
-            type: "string",
-            description: "A short message describing the change."
-          }
-        },
-        required: ["file_path", "new_content", "commit_message"]
-      }
-    }
-  }
-];
