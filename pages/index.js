@@ -14,6 +14,28 @@ const functions = [
       },
       required: ["file_path"]
     }
+  },
+  {
+    name: "commit_file_update",
+    description: "Update a file in the GitHub repository with new contents and commit the change.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file in the repository (e.g., 'src/app.js')."
+        },
+        new_content: {
+          type: "string",
+          description: "The updated content of the file."
+        },
+        commit_message: {
+          type: "string",
+          description: "The commit message to use for this change."
+        }
+      },
+      required: ["file_path", "new_content", "commit_message"]
+    }
   }
 ];
 
@@ -68,6 +90,42 @@ export default function Home() {
     }
   };
 
+  const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
+    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+
+    const getRes = await fetch(fileUrl, {
+      headers: { Authorization: `token ${token}` }
+    });
+
+    if (!getRes.ok) {
+      throw new Error(`Failed to retrieve file metadata: ${getRes.status} ${getRes.statusText}`);
+    }
+
+    const fileData = await getRes.json();
+    const fileSHA = fileData.sha;
+
+    const updateRes = await fetch(fileUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: commitMessage,
+        content: btoa(newContent),
+        sha: fileSHA
+      })
+    });
+
+    if (!updateRes.ok) {
+      throw new Error(`Failed to commit file: ${updateRes.status} ${updateRes.statusText}`);
+    }
+
+    const result = await updateRes.json();
+    return `Committed ${filePath} to ${result.commit.html_url}`;
+  };
+
   const sendMessage = async () => {
     try {
       setError(null);
@@ -77,8 +135,8 @@ export default function Home() {
 
       const fileList = await fetchRepoFileList(githubRepo, githubKey);
       const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
-      //const modelId = "o4-mini-2025-04-16";
       const modelId = "gpt-4o-2024-08-06";
+
       const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -132,14 +190,45 @@ export default function Home() {
           });
 
           const finalData = await finalRes.json();
-          if (!finalData.choices) {
-            throw new Error(
-             `OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`
-            );
-          }
           const reply = finalData.choices[0].message.content;
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
         }
+
+        else if (functionName === 'commit_file_update') {
+          const result = await commitAndPushFile(
+            githubRepo,
+            functionArgs.file_path,
+            functionArgs.new_content,
+            functionArgs.commit_message,
+            githubKey
+          );
+
+          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: modelId,
+              messages: [
+                { role: 'system', content: 'You are a helpful coding assistant.' },
+                { role: 'user', content: `${fileListPrompt}\n\n${input}` },
+                message,
+                {
+                  role: 'function',
+                  name: functionName,
+                  content: result
+                }
+              ]
+            })
+          });
+
+          const finalData = await finalRes.json();
+          const reply = finalData.choices?.[0]?.message?.content || 'Committed successfully.';
+          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        }
+
       } else {
         const reply = message.content;
         setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
