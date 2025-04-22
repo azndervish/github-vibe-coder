@@ -43,6 +43,7 @@ export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
   const [githubKey, setGithubKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
+  const [branch, setBranch] = useState('main');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState(null);
@@ -53,21 +54,28 @@ export default function Home() {
     const storedRepo = localStorage.getItem('githubRepo');
     const storedGitHubKey = localStorage.getItem('githubKey');
     const storedOpenAIKey = localStorage.getItem('openaiKey');
+    const storedBranch = localStorage.getItem('branch');
 
     if (storedRepo) setGithubRepo(storedRepo);
     if (storedGitHubKey) setGithubKey(storedGitHubKey);
     if (storedOpenAIKey) setOpenaiKey(storedOpenAIKey);
+    if (storedBranch) {
+      setBranch(storedBranch);
+    } else {
+      setBranch('main');
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem('githubRepo', githubRepo);
     localStorage.setItem('githubKey', githubKey);
     localStorage.setItem('openaiKey', openaiKey);
-  }, [githubRepo, githubKey, openaiKey]);
+    localStorage.setItem('branch', branch);
+  }, [githubRepo, githubKey, openaiKey, branch]);
 
   const fetchRepoFileList = async (repoUrl, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`;
+    const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
     const res = await fetch(treeUrl, {
       headers: { Authorization: `token ${token}` },
     });
@@ -77,7 +85,7 @@ export default function Home() {
 
   const fetchFileContent = async (repoUrl, filePath, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
     const res = await fetch(fileUrl, {
       headers: { Authorization: `token ${token}` },
     });
@@ -111,6 +119,7 @@ export default function Home() {
         message: commitMessage,
         content: btoa(newContent),
         sha: getData.sha,
+        branch: branch,
       }),
     });
 
@@ -238,7 +247,6 @@ export default function Home() {
 
   return (
     <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
-      <h1 style={{ fontWeight: 'bold' }}>Vibe Code Assistant</h1>
       <input
         placeholder="GitHub Repo URL"
         value={githubRepo}
@@ -257,6 +265,12 @@ export default function Home() {
         type="password"
         value={openaiKey}
         onChange={e => setOpenaiKey(e.target.value)}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      />
+      <input
+        placeholder="Branch"
+        value={branch}
+        onChange={e => setBranch(e.target.value)}
         style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
       <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
