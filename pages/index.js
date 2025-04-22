@@ -2,39 +2,45 @@ import { useEffect, useState } from 'react';
 
 const tools = [
   {
-    name: "get_file_content",
-    description: "Retrieve the content of a specific file from a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file within the repository (e.g., 'src/app.js')."
-        }
-      },
-      required: ["file_path"]
+    type: "function",
+    function: {
+      name: "get_file_content",
+      description: "Retrieve the content of a specific file from a GitHub repository.",
+      parameters: {
+        type: "object",
+        properties: {
+          file_path: {
+            type: "string",
+            description: "The path to the file within the repository (e.g., 'src/app.js')."
+          }
+        },
+        required: ["file_path"]
+      }
     }
   },
   {
-    name: "commit_file",
-    description: "Commit and push changes to a specific file in a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file being updated."
+    type: "function",
+    function: {
+      name: "commit_file",
+      description: "Commit and push changes to a specific file in a GitHub repository.",
+      parameters: {
+        type: "object",
+        properties: {
+          file_path: {
+            type: "string",
+            description: "The path to the file being updated."
+          },
+          new_content: {
+            type: "string",
+            description: "The updated content of the file."
+          },
+          commit_message: {
+            type: "string",
+            description: "A short message describing the change."
+          }
         },
-        new_content: {
-          type: "string",
-          description: "The updated content of the file."
-        },
-        commit_message: {
-          type: "string",
-          description: "A short message describing the change."
-        }
-      },
-      required: ["file_path", "new_content", "commit_message"]
+        required: ["file_path", "new_content", "commit_message"]
+      }
     }
   }
 ];
