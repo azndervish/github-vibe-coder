@@ -237,29 +237,29 @@ export default function Home() {
   };
 
   return (
-    <div style={{ padding: '1rem', fontFamily: 'sans-serif' }}>
+    <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
       <h1 style={{ fontWeight: 'bold' }}>Vibe Code Assistant</h1>
       <input
         placeholder="GitHub Repo URL"
         value={githubRepo}
         onChange={e => setGithubRepo(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px' }}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
       <input
         placeholder="GitHub API Key"
         type="password"
         value={githubKey}
         onChange={e => setGithubKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px' }}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
       <input
         placeholder="OpenAI API Key"
         type="password"
         value={openaiKey}
         onChange={e => setOpenaiKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px' }}
+        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
-      <div style={{ border: '1px solid #ccc', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
+      <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ marginBottom: '1rem' }}>
             <strong>{m.role}:</strong> <pre style={{ whiteSpace: 'pre-wrap' }}>{m.content}</pre>
@@ -270,12 +270,12 @@ export default function Home() {
         rows={3}
         value={input}
         onChange={e => setInput(e.target.value)}
-        style={{ width: '100%', marginTop: '1rem' }}
+        style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
-      <button onClick={sendMessage} style={{ marginTop: '0.5rem' }}>Send</button>
+      <button onClick={sendMessage} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
 
       {error && (
-        <div style={{ backgroundColor: '#fee', color: '#900', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
+        <div style={{ backgroundColor: '#ff4d4d', color: '#ffffff', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
           <strong>Error:</strong> {error}
         </div>
       )}
