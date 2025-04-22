@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
 
-const functions = [
+const functions = [ // Add back the functions
   {
     name: "get_file_content",
     description: "Retrieve the content of a specific file from a GitHub repository.",
@@ -51,6 +51,7 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [isLoading, setIsLoading] = useState(false); // New loading state
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -160,6 +161,7 @@ export default function Home() {
   const sendMessage = async () => {
     try {
       setError(null);
+      setIsLoading(true); // Set loading to true at the start of the function
       const userMsg = { role: 'user', content: input };
       setMessages(prev => [...prev, userMsg]);
       setInput('');
@@ -188,7 +190,7 @@ export default function Home() {
         body: JSON.stringify({
           model: modelId,
           messages: updatedHistory,
-          functions: functions
+          functions: functions // Corrected, include functions
         })
       });
 
@@ -277,6 +279,8 @@ export default function Home() {
         ? `${err.message}\n\n${err.stack}`
         : JSON.stringify(err, null, 2);
       setError(message);
+    } finally {
+      setIsLoading(false); // Set loading to false at the end of the function
     }
   };
 
@@ -285,6 +289,36 @@ export default function Home() {
 
   return (
     <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
+      <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '500px', overflowY: 'scroll' }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ marginBottom: '1rem' }}>
+            <strong>{m.role}:</strong> <pre style={{ whiteSpace: 'pre-wrap' }}>{m.content}</pre>
+          </div>
+        ))}
+      </div>
+
+      <textarea
+        rows={3}
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555', marginBottom: '1rem' }}
+      />
+
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+        {isLoading ? (
+          <div style={{ color: '#ffffff', padding: '0.5rem 1rem' }}>Loading...</div>
+        ) : (
+          <button onClick={sendMessage} disabled={isLoading} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
+        )}
+        <span style={{ marginLeft: '0.5rem', color: '#ffffff' }}>Tokens used: {totalTokens}</span>
+      </div>
+
+      {error && (
+        <div style={{ backgroundColor: '#ff4d4d', color: '#ffffff', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
       <SettingsInputs 
         githubRepo={githubRepo}
         setGithubRepo={setGithubRepo}
@@ -295,30 +329,6 @@ export default function Home() {
         branch={branch}
         setBranch={setBranch}
       />
-      <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ marginBottom: '1rem' }}>
-            <strong>{m.role}:</strong> <pre style={{ whiteSpace: 'pre-wrap' }}>{m.content}</pre>
-          </div>
-        ))}
-      </div>
-      <textarea
-        rows={3}
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <button onClick={sendMessage} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
-        <span style={{ marginLeft: '0.5rem', color: '#ffffff' }}>Tokens used: {totalTokens}</span>
-      </div>
-
-      {error && (
-        <div style={{ backgroundColor: '#ff4d4d', color: '#ffffff', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
-          <strong>Error:</strong> {error}
-        </div>
-      )}
-
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
         {branchEnv} ({commitHashEnv?.substring(0, 6)})
       </div>
