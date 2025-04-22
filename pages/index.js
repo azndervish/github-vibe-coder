@@ -255,14 +255,14 @@ export default function Home() {
       />
       <input
         placeholder="GitHub API Key"
-        type="password"
+        type="text"  // Changed from "password"
         value={githubKey}
         onChange={e => setGithubKey(e.target.value)}
         style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
       <input
         placeholder="OpenAI API Key"
-        type="password"
+        type="text"  // Changed from "password"
         value={openaiKey}
         onChange={e => setOpenaiKey(e.target.value)}
         style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
