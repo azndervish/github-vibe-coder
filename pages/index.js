@@ -102,12 +102,16 @@ export default function Home() {
 
   const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;  // Add branch reference here
 
     const getRes = await fetch(fileUrl, {
       headers: { Authorization: `token ${token}` },
     });
     const getData = await getRes.json();
+
+    if (!getRes.ok) {
+      throw new Error(`Failed to fetch file ${filePath}: ${getRes.status} ${getRes.statusText}`);
+    }
 
     const res = await fetch(fileUrl, {
       method: 'PUT',
