@@ -23,18 +23,23 @@ jobs:
       - name: Build and export
         run: npm run s3-build
 
-      - name: Determine destination directory
-        id: dest-dir
-        run: echo "DEST_DIR=$(if [[ '${{ github.ref_name }}' == 'main' ]]; then echo ''; else echo '${{ github.ref_name }}'; fi)" >> $GITHUB_ENV
+      - name: Determine target bucket
+        id: target-bucket
+        run: |
+          if [ "${GITHUB_REF_NAME}" == "main" ]; then
+            echo "AWS_S3_BUCKET=${{ secrets.S3_BUCKET_NAME }}" >> $GITHUB_ENV
+          else
+            echo "AWS_S3_BUCKET=${{ secrets.S3_BUCKET_NAME_DEV }}" >> $GITHUB_ENV
+          fi
 
       - name: Deploy to S3
         uses: jakejarvis/s3-sync-action@v0.5.1
         with:
           args: --delete
         env:
-          AWS_S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+          AWS_S3_BUCKET: ${{ env.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: 'us-east-1'
           SOURCE_DIR: './out'
-          DEST_DIR: "${{ env.DEST_DIR }}"
+          DEST_DIR: ''
