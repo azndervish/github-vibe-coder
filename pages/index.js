@@ -1,44 +1,5 @@
 import { useEffect, useState } from 'react';
-import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
-
-const functions = [
-  {
-    name: "get_file_content",
-    description: "Retrieve the content of a specific file from a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file within the repository (e.g., 'src/app.js')."
-        }
-      },
-      required: ["file_path"]
-    }
-  },
-  {
-    name: "commit_file",
-    description: "Commit and push changes to a specific file in a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file being updated."
-        },
-        new_content: {
-          type: "string",
-          description: "The updated content of the file."
-        },
-        commit_message: {
-          type: "string",
-          description: "A short message describing the change."
-        }
-      },
-      required: ["file_path", "new_content", "commit_message"]
-    }
-  }
-];
+import SettingsInputs from './SettingsInputs';
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -51,6 +12,7 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [isLoading, setIsLoading] = useState(false); // New loading state
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -160,6 +122,7 @@ export default function Home() {
   const sendMessage = async () => {
     try {
       setError(null);
+      setIsLoading(true); // Set loading to true at the start of the function
       const userMsg = { role: 'user', content: input };
       setMessages(prev => [...prev, userMsg]);
       setInput('');
@@ -187,8 +150,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           model: modelId,
-          messages: updatedHistory,
-          functions: functions
+          messages: updatedHistory
         })
       });
 
@@ -277,6 +239,8 @@ export default function Home() {
         ? `${err.message}\n\n${err.stack}`
         : JSON.stringify(err, null, 2);
       setError(message);
+    } finally {
+      setIsLoading(false); // Set loading to false at the end of the function
     }
   };
 
@@ -299,9 +263,13 @@ export default function Home() {
         onChange={e => setInput(e.target.value)}
         style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555', marginBottom: '1rem' }}
       />
-      
+
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-        <button onClick={sendMessage} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
+        {isLoading ? (
+          <div style={{ color: '#ffffff', padding: '0.5rem 1rem' }}>Loading...</div>
+        ) : (
+          <button onClick={sendMessage} disabled={isLoading} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
+        )}
         <span style={{ marginLeft: '0.5rem', color: '#ffffff' }}>Tokens used: {totalTokens}</span>
       </div>
 
