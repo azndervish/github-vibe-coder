@@ -1,5 +1,44 @@
 import { useEffect, useState } from 'react';
 
+const functions = [
+  {
+    name: "get_file_content",
+    description: "Retrieve the content of a specific file from a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file within the repository (e.g., 'src/app.js')."
+        }
+      },
+      required: ["file_path"]
+    }
+  },
+  {
+    name: "commit_file",
+    description: "Commit and push changes to a specific file in a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file being updated."
+        },
+        new_content: {
+          type: "string",
+          description: "The updated content of the file."
+        },
+        commit_message: {
+          type: "string",
+          description: "A short message describing the change."
+        }
+      },
+      required: ["file_path", "new_content", "commit_message"]
+    }
+  }
+];
+
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
   const [githubKey, setGithubKey] = useState('');
@@ -10,20 +49,21 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
-  const [modelId, setModelId] = useState('gpt-4o-2024-08-06');
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
     const storedGitHubKey = localStorage.getItem('githubKey');
     const storedOpenAIKey = localStorage.getItem('openaiKey');
     const storedBranch = localStorage.getItem('branch');
-    const storedModelId = localStorage.getItem('modelId');
 
     if (storedRepo) setGithubRepo(storedRepo);
     if (storedGitHubKey) setGithubKey(storedGitHubKey);
     if (storedOpenAIKey) setOpenaiKey(storedOpenAIKey);
-    if (storedBranch) setBranch(storedBranch);
-    if (storedModelId) setModelId(storedModelId);
+    if (storedBranch) {
+      setBranch(storedBranch);
+    } else {
+      setBranch('main');
+    }
   }, []);
 
   useEffect(() => {
@@ -31,8 +71,7 @@ export default function Home() {
     localStorage.setItem('githubKey', githubKey);
     localStorage.setItem('openaiKey', openaiKey);
     localStorage.setItem('branch', branch);
-    localStorage.setItem('modelId', modelId);
-  }, [githubRepo, githubKey, openaiKey, branch, modelId]);
+  }, [githubRepo, githubKey, openaiKey, branch]);
 
   const fetchRepoFileList = async (repoUrl, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
@@ -110,6 +149,7 @@ export default function Home() {
         setIsFirstSend(false);
       }
 
+      const modelId = "gpt-4o-2024-08-06";
       const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -119,7 +159,7 @@ export default function Home() {
         body: JSON.stringify({
           model: modelId,
           messages: updatedHistory,
-          tools: tools
+          functions: functions
         })
       });
 
@@ -130,30 +170,30 @@ export default function Home() {
 
       const message = initialData.choices[0].message;
 
-      if (message.tool_call) {
-        const { name: toolName, arguments: toolArgsRaw } = message.tool_call;
-        const toolArgs = JSON.parse(toolArgsRaw);
+      if (message.function_call) {
+        const { name: functionName, arguments: functionArgsRaw } = message.function_call;
+        const functionArgs = JSON.parse(functionArgsRaw);
         const timestamp = new Date().toLocaleTimeString();
 
         setMessages(prev => [
           ...prev,
           {
-            role: 'tool',
-            content: `Tool called: ${toolName} @ ${timestamp}\nArguments:\n${Object.entries(toolArgs)
-              .filter(([key]) => toolName === 'commit_file' ? key !== 'new_content' : true)
+            role: 'function',
+            content: `Function called: ${functionName} @ ${timestamp}\nArguments:\n${Object.entries(functionArgs)
+              .filter(([key]) => functionName === 'commit_file' ? key !== 'new_content' : true)
               .map(([key, value]) => `${key}: ${value}`)
               .join('\n')}`
           }
         ]);
 
-        if (toolName === 'get_file_content') {
-          const fileContent = await fetchFileContent(githubRepo, toolArgs.file_path, githubKey);
-          const toolMsg = {
-            role: 'tool',
-            name: toolName,
+        if (functionName === 'get_file_content') {
+          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
+          const functionMsg = {
+            role: 'function',
+            name: functionName,
             content: fileContent
           };
-          const finalHistory = [...updatedHistory, message, toolMsg];
+          const finalHistory = [...updatedHistory, message, functionMsg];
 
           const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -174,18 +214,18 @@ export default function Home() {
           const reply = finalData.choices[0].message.content;
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
           setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
-        } else if (toolName === 'commit_file') {
+        } else if (functionName === 'commit_file') {
           await commitAndPushFile(
             githubRepo,
-            toolArgs.file_path,
-            toolArgs.new_content,
-            toolArgs.commit_message,
+            functionArgs.file_path,
+            functionArgs.new_content,
+            functionArgs.commit_message,
             githubKey
           );
           setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
           setChatHistory(updatedHistory.concat(message, {
-            role: 'tool',
-            name: toolName,
+            role: 'function',
+            name: functionName,
             content: 'File committed successfully.'
           }, {
             role: 'assistant',
@@ -233,12 +273,6 @@ export default function Home() {
         onChange={e => setBranch(e.target.value)}
         style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
-      <input
-        placeholder="Model ID"
-        value={modelId}
-        onChange={e => setModelId(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
       <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ marginBottom: '1rem' }}>
@@ -262,48 +296,3 @@ export default function Home() {
     </div>
   );
 }
-
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "get_file_content",
-      description: "Retrieve the content of a specific file from a GitHub repository.",
-      parameters: {
-        type: "object",
-        properties: {
-          file_path: {
-            type: "string",
-            description: "The path to the file within the repository (e.g., 'src/app.js')."
-          }
-        },
-        required: ["file_path"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "commit_file",
-      description: "Commit and push changes to a specific file in a GitHub repository.",
-      parameters: {
-        type: "object",
-        properties: {
-          file_path: {
-            type: "string",
-            description: "The path to the file being updated."
-          },
-          new_content: {
-            type: "string",
-            description: "The updated content of the file."
-          },
-          commit_message: {
-            type: "string",
-            description: "A short message describing the change."
-          }
-        },
-        required: ["file_path", "new_content", "commit_message"]
-      }
-    }
-  }
-];
