@@ -33,4 +33,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: 'us-east-1'
           SOURCE_DIR: './out'
-          DEST_DIR: "${{ github.ref_name == 'main' && '/' || '/' + github.ref_name }}"
+          DEST_DIR: "${{ github.ref_name == 'main' ? '/' : '/' + github.ref_name }}"
