@@ -1,5 +1,44 @@
 import { useEffect, useState } from 'react';
-import SettingsInputs from './SettingsInputs';
+import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
+
+const functions = [ // Add back the functions
+  {
+    name: "get_file_content",
+    description: "Retrieve the content of a specific file from a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file within the repository (e.g., 'src/app.js')."
+        }
+      },
+      required: ["file_path"]
+    }
+  },
+  {
+    name: "commit_file",
+    description: "Commit and push changes to a specific file in a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file being updated."
+        },
+        new_content: {
+          type: "string",
+          description: "The updated content of the file."
+        },
+        commit_message: {
+          type: "string",
+          description: "A short message describing the change."
+        }
+      },
+      required: ["file_path", "new_content", "commit_message"]
+    }
+  }
+];
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -150,7 +189,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           model: modelId,
-          messages: updatedHistory
+          messages: updatedHistory,
+          functions: functions // Corrected, include functions
         })
       });
 
