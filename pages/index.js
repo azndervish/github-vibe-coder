@@ -249,6 +249,9 @@ export default function Home() {
     }
   };
 
+  const branchEnv = process.env.NEXT_PUBLIC_BRANCH;
+  const commitHashEnv = process.env.NEXT_PUBLIC_COMMIT_HASH;
+
   return (
     <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
       <input
@@ -259,14 +262,14 @@ export default function Home() {
       />
       <input
         placeholder="GitHub API Key"
-        type="text"  // Changed from "password"
+        type="text"
         value={githubKey}
         onChange={e => setGithubKey(e.target.value)}
         style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
       <input
         placeholder="OpenAI API Key"
-        type="text"  // Changed from "password"
+        type="text"
         value={openaiKey}
         onChange={e => setOpenaiKey(e.target.value)}
         style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
@@ -297,6 +300,11 @@ export default function Home() {
           <strong>Error:</strong> {error}
         </div>
       )}
+
+      <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#333333', color: '#cccccc' }}>
+        <div><strong>Branch:</strong> {branchEnv}</div>
+        <div><strong>Commit Hash:</strong> {commitHashEnv}</div>
+      </div>
     </div>
   );
-    }
+}
