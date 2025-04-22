@@ -49,6 +49,7 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
+  const [totalTokens, setTotalTokens] = useState(0);
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -197,6 +198,9 @@ export default function Home() {
 
       const message = initialData.choices[0].message;
 
+      const tokenUsage = initialData.usage.total_tokens || 0;
+      setTotalTokens((prev) => prev + tokenUsage);
+
       if (message.function_call) {
         const { name: functionName, arguments: functionArgsRaw } = message.function_call;
         const functionArgs = JSON.parse(functionArgsRaw);
@@ -316,7 +320,10 @@ export default function Home() {
         onChange={e => setInput(e.target.value)}
         style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
       />
-      <button onClick={sendMessage} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button onClick={sendMessage} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
+        <span style={{ marginLeft: '0.5rem', color: '#ffffff' }}>Tokens used: {totalTokens}</span>
+      </div>
 
       {error && (
         <div style={{ backgroundColor: '#ff4d4d', color: '#ffffff', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
