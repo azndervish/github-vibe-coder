@@ -127,119 +127,142 @@ export default function Home() {
   };
 
   const sendMessage = async () => {
-    try {
-      setError(null);
-      const userMsg = { role: 'user', content: input };
-      setMessages(prev => [...prev, userMsg]);
-      setInput('');
+  try {
+    setError(null);
+    const userMsg = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
 
-      const fileList = await fetchRepoFileList(githubRepo, githubKey);
-      const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
-      const modelId = "gpt-4o-2024-08-06";
+    const fileList = await fetchRepoFileList(githubRepo, githubKey);
+    const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
 
-      const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: modelId,
-          messages: [
-            { role: 'system', content: 'You are a helpful coding assistant.' },
-            { role: 'user', content: `${fileListPrompt}\n\n${input}` }
-          ],
-          functions: functions
-        })
-      });
+    // Show file list in chat
+    const timestamp = new Date().toLocaleTimeString();
+    setMessages(prev => [
+      ...prev,
+      { role: 'system', content: `🕒 ${timestamp} | Repository File List:\n${fileList.join('\n')}` }
+    ]);
 
-      const initialData = await initialRes.json();
-      if (!initialData.choices) {
-        throw new Error(
-          `OpenAI API returned an unexpected response:\n\n${JSON.stringify(initialData, null, 2)}`
-        );
+    const modelId = "gpt-4o-2024-08-06";
+
+    const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [
+          { role: 'system', content: 'You are a helpful coding assistant.' },
+          { role: 'user', content: `${fileListPrompt}\n\n${input}` }
+        ],
+        functions: functions
+      })
+    });
+
+    const initialData = await initialRes.json();
+    if (!initialData.choices) {
+      throw new Error(
+        `OpenAI API returned an unexpected response:\n\n${JSON.stringify(initialData, null, 2)}`
+      );
+    }
+
+    const message = initialData.choices[0].message;
+
+    if (message.function_call) {
+      const functionName = message.function_call.name;
+      const functionArgs = JSON.parse(message.function_call.arguments);
+
+      const cleanArgs = { ...functionArgs };
+      if (functionName === 'commit_file_update') {
+        delete cleanArgs.new_content;
       }
-      const message = initialData.choices[0].message;
 
-      if (message.function_call) {
-        const functionName = message.function_call.name;
-        const functionArgs = JSON.parse(message.function_call.arguments);
-
-        if (functionName === 'get_file_content') {
-          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
-
-          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: modelId,
-              messages: [
-                { role: 'system', content: 'You are a helpful coding assistant.' },
-                { role: 'user', content: `${fileListPrompt}\n\n${input}` },
-                message,
-                {
-                  role: 'function',
-                  name: functionName,
-                  content: fileContent
-                }
-              ]
-            })
-          });
-
-          const finalData = await finalRes.json();
-          const reply = finalData.choices[0].message.content;
-          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      const timestamp = new Date().toLocaleTimeString();
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'system',
+          content: `🕒 ${timestamp} | Calling function: ${functionName}\nArguments:\n${JSON.stringify(cleanArgs, null, 2)}`
         }
+      ]);
 
-        else if (functionName === 'commit_file_update') {
-          const result = await commitAndPushFile(
-            githubRepo,
-            functionArgs.file_path,
-            functionArgs.new_content,
-            functionArgs.commit_message,
-            githubKey
-          );
+      if (functionName === 'get_file_content') {
+        const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
 
-          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: modelId,
-              messages: [
-                { role: 'system', content: 'You are a helpful coding assistant.' },
-                { role: 'user', content: `${fileListPrompt}\n\n${input}` },
-                message,
-                {
-                  role: 'function',
-                  name: functionName,
-                  content: result
-                }
-              ]
-            })
-          });
+        const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: modelId,
+            messages: [
+              { role: 'system', content: 'You are a helpful coding assistant.' },
+              { role: 'user', content: `${fileListPrompt}\n\n${input}` },
+              message,
+              {
+                role: 'function',
+                name: functionName,
+                content: fileContent
+              }
+            ]
+          })
+        });
 
-          const finalData = await finalRes.json();
-          const reply = finalData.choices?.[0]?.message?.content || 'Committed successfully.';
-          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-        }
-
-      } else {
-        const reply = message.content;
+        const finalData = await finalRes.json();
+        const reply = finalData.choices[0].message.content;
         setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       }
-    } catch (err) {
-      const message = err instanceof Error
-        ? `${err.message}\n\n${err.stack}`
-        : JSON.stringify(err, null, 2);
-      setError(message);
+
+      else if (functionName === 'commit_file_update') {
+        const result = await commitAndPushFile(
+          githubRepo,
+          functionArgs.file_path,
+          functionArgs.new_content,
+          functionArgs.commit_message,
+          githubKey
+        );
+
+        const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: modelId,
+            messages: [
+              { role: 'system', content: 'You are a helpful coding assistant.' },
+              { role: 'user', content: `${fileListPrompt}\n\n${input}` },
+              message,
+              {
+                role: 'function',
+                name: functionName,
+                content: result
+              }
+            ]
+          })
+        });
+
+        const finalData = await finalRes.json();
+        const reply = finalData.choices?.[0]?.message?.content || 'Committed successfully.';
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      }
+
+    } else {
+      const reply = message.content;
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     }
-  };
+  } catch (err) {
+    const message = err instanceof Error
+      ? `${err.message}\n\n${err.stack}`
+      : JSON.stringify(err, null, 2);
+    setError(message);
+  }
+};
 
   return (
     <div style={{ padding: '1rem', fontFamily: 'sans-serif' }}>
