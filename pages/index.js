@@ -285,16 +285,6 @@ export default function Home() {
 
   return (
     <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
-      <SettingsInputs 
-        githubRepo={githubRepo}
-        setGithubRepo={setGithubRepo}
-        githubKey={githubKey}
-        setGithubKey={setGithubKey}
-        openaiKey={openaiKey}
-        setOpenaiKey={setOpenaiKey}
-        branch={branch}
-        setBranch={setBranch}
-      />
       <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ marginBottom: '1rem' }}>
@@ -319,6 +309,16 @@ export default function Home() {
         </div>
       )}
 
+      <SettingsInputs 
+        githubRepo={githubRepo}
+        setGithubRepo={setGithubRepo}
+        githubKey={githubKey}
+        setGithubKey={setGithubKey}
+        openaiKey={openaiKey}
+        setOpenaiKey={setOpenaiKey}
+        branch={branch}
+        setBranch={setBranch}
+      />
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
         {branchEnv} ({commitHashEnv?.substring(0, 6)})
       </div>
