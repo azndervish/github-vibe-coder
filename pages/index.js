@@ -104,43 +104,54 @@ export default function Home() {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
     const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
 
+    let sha = null;
+
+    // First try-catch block for GET request to check if file exists
     try {
-      // Attempt to retrieve the file details to get the SHA
       const getRes = await fetch(fileUrl, {
         headers: { Authorization: `token ${token}` },
       });
 
-      const getData = getRes.ok ? await getRes.json() : null;
-      const sha = getData ? getData.sha : null;
+      if (getRes.ok) {
+        const getData = await getRes.json();
+        sha = getData.sha;
+      } else if (getRes.status === 404) {
+        console.log(`File ${filePath} does not exist, it will be created.`);
+      } else {
+        throw new Error(`Failed to fetch file details: ${getRes.status} ${getRes.statusText}`);
+      }
+    } catch (error) {
+      console.error(`Error fetching file details for ${filePath}: ${error.message}`);
+      return; // Exiting early as GET failed for unknown reason
+    }
 
-      // Create the request body
+    // Second try-catch block for PUT request to commit file
+    try {
+      const headers = {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json',
+      };
+
       const body = JSON.stringify({
         message: commitMessage,
         content: btoa(newContent),
-        // Include the SHA only if the file already exists
-        ...sha && { sha },
+        ...(sha ? { sha } : {}),
         branch: branch,
       });
 
-      // Send the request to commit the file
       const res = await fetch(fileUrl, {
         method: 'PUT',
-        headers: {
-          Authorization: `token ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: body,
       });
 
       if (!res.ok) {
         throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
+      } else {
+        console.info(`File ${filePath} committed successfully.`);
       }
     } catch (error) {
-      if (error instanceof Error && error.message.includes('404')) {
-        console.error(`The file ${filePath} does not exist, creating a new file.`);
-      } else {
-        throw error;
-      }
+      console.error(`Error committing file ${filePath}: ${error.message}`);
     }
   };
 
