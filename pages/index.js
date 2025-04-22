@@ -102,33 +102,56 @@ export default function Home() {
 
   const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
     const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;  // Add branch reference here
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
 
-    const getRes = await fetch(fileUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-    const getData = await getRes.json();
+    let sha = null;
 
-    if (!getRes.ok) {
-      throw new Error(`Failed to fetch file ${filePath}: ${getRes.status} ${getRes.statusText}`);
+    // First try-catch block for GET request to check if file exists
+    try {
+      const getRes = await fetch(fileUrl, {
+        headers: { Authorization: `token ${token}` },
+      });
+
+      if (getRes.ok) {
+        const getData = await getRes.json();
+        sha = getData.sha;
+      } else if (getRes.status === 404) {
+        console.log(`File ${filePath} does not exist, it will be created.`);
+      } else {
+        throw new Error(`Failed to fetch file details: ${getRes.status} ${getRes.statusText}`);
+      }
+    } catch (error) {
+      console.error(`Error fetching file details for ${filePath}: ${error.message}`);
+      return; // Exiting early as GET failed for unknown reason
     }
 
-    const res = await fetch(fileUrl, {
-      method: 'PUT',
-      headers: {
+    // Second try-catch block for PUT request to commit file
+    try {
+      const headers = {
         Authorization: `token ${token}`,
         'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      };
+
+      const body = JSON.stringify({
         message: commitMessage,
         content: btoa(newContent),
-        sha: getData.sha,
+        ...(sha ? { sha } : {}),
         branch: branch,
-      }),
-    });
+      });
 
-    if (!res.ok) {
-      throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
+      const res = await fetch(fileUrl, {
+        method: 'PUT',
+        headers: headers,
+        body: body,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
+      } else {
+        console.info(`File ${filePath} committed successfully.`);
+      }
+    } catch (error) {
+      console.error(`Error committing file ${filePath}: ${error.message}`);
     }
   };
 
