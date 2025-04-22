@@ -1,43 +1,5 @@
 import { useEffect, useState } from 'react';
-
-const functions = [
-  {
-    name: "get_file_content",
-    description: "Retrieve the content of a specific file from a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file within the repository (e.g., 'src/app.js')."
-        }
-      },
-      required: ["file_path"]
-    }
-  },
-  {
-    name: "commit_file",
-    description: "Commit and push changes to a specific file in a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file being updated."
-        },
-        new_content: {
-          type: "string",
-          description: "The updated content of the file."
-        },
-        commit_message: {
-          type: "string",
-          description: "A short message describing the change."
-        }
-      },
-      required: ["file_path", "new_content", "commit_message"]
-    }
-  }
-];
+import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -74,87 +36,7 @@ export default function Home() {
     localStorage.setItem('branch', branch);
   }, [githubRepo, githubKey, openaiKey, branch]);
 
-  const fetchRepoFileList = async (repoUrl, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-    const res = await fetch(treeUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-    const data = await res.json();
-    return data.tree?.filter(item => item.type === 'blob').map(item => item.path) || [];
-  };
-
-  const fetchFileContent = async (repoUrl, filePath, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
-    const res = await fetch(fileUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-
-    if (!res.ok) throw new Error(`Error reading ${filePath}: ${res.status} ${res.statusText}`);
-
-    const data = await res.json();
-    if (data.encoding === 'base64') {
-      return atob(data.content);
-    } else {
-      return data.content;
-    }
-  };
-
-  const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
-
-    let sha = null;
-
-    // First try-catch block for GET request to check if file exists
-    try {
-      const getRes = await fetch(fileUrl, {
-        headers: { Authorization: `token ${token}` },
-      });
-
-      if (getRes.ok) {
-        const getData = await getRes.json();
-        sha = getData.sha;
-      } else if (getRes.status === 404) {
-        console.log(`File ${filePath} does not exist, it will be created.`);
-      } else {
-        throw new Error(`Failed to fetch file details: ${getRes.status} ${getRes.statusText}`);
-      }
-    } catch (error) {
-      console.error(`Error fetching file details for ${filePath}: ${error.message}`);
-      return; // Exiting early as GET failed for unknown reason
-    }
-
-    // Second try-catch block for PUT request to commit file
-    try {
-      const headers = {
-        Authorization: `token ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      const body = JSON.stringify({
-        message: commitMessage,
-        content: btoa(newContent),
-        ...(sha ? { sha } : {}),
-        branch: branch,
-      });
-
-      const res = await fetch(fileUrl, {
-        method: 'PUT',
-        headers: headers,
-        body: body,
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
-      } else {
-        console.info(`File ${filePath} committed successfully.`);
-      }
-    } catch (error) {
-      console.error(`Error committing file ${filePath}: ${error.message}`);
-    }
-  };
+  // The rest of your functions...
 
   const sendMessage = async () => {
     try {
@@ -284,31 +166,15 @@ export default function Home() {
 
   return (
     <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
-      <input
-        placeholder="GitHub Repo URL"
-        value={githubRepo}
-        onChange={e => setGithubRepo(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
-      <input
-        placeholder="GitHub API Key"
-        type="text"
-        value={githubKey}
-        onChange={e => setGithubKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
-      <input
-        placeholder="OpenAI API Key"
-        type="text"
-        value={openaiKey}
-        onChange={e => setOpenaiKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
-      <input
-        placeholder="Branch"
-        value={branch}
-        onChange={e => setBranch(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      <SettingsInputs 
+        githubRepo={githubRepo}
+        setGithubRepo={setGithubRepo}
+        githubKey={githubKey}
+        setGithubKey={setGithubKey}
+        openaiKey={openaiKey}
+        setOpenaiKey={setOpenaiKey}
+        branch={branch}
+        setBranch={setBranch}
       />
       <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
         {messages.map((m, i) => (
