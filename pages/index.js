@@ -1,5 +1,44 @@
 import { useEffect, useState } from 'react';
 
+const functions = [
+  {
+    name: "get_file_content",
+    description: "Retrieve the content of a specific file from a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file within the repository (e.g., 'src/app.js')."
+        }
+      },
+      required: ["file_path"]
+    }
+  },
+  {
+    name: "commit_file",
+    description: "Commit and push changes to a specific file in a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file being updated."
+        },
+        new_content: {
+          type: "string",
+          description: "The updated content of the file."
+        },
+        commit_message: {
+          type: "string",
+          description: "A short message describing the change."
+        }
+      },
+      required: ["file_path", "new_content", "commit_message"]
+    }
+  }
+];
+
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
   const [githubKey, setGithubKey] = useState('');
@@ -9,7 +48,6 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
-  const [darkMode, setDarkMode] = useState(false); // New state for dark mode
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -27,82 +65,201 @@ export default function Home() {
     localStorage.setItem('openaiKey', openaiKey);
   }, [githubRepo, githubKey, openaiKey]);
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
+  const fetchRepoFileList = async (repoUrl, token) => {
+    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
+    const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`;
+    const res = await fetch(treeUrl, {
+      headers: { Authorization: `token ${token}` },
+    });
+    const data = await res.json();
+    return data.tree?.filter(item => item.type === 'blob').map(item => item.path) || [];
   };
 
-  const containerStyle = {
-    padding: '1rem',
-    fontFamily: 'sans-serif',
-    backgroundColor: darkMode ? '#121212' : '#fff',
-    color: darkMode ? '#f0f0f0' : '#000',
-    minHeight: '100vh'
+  const fetchFileContent = async (repoUrl, filePath, token) => {
+    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+    const res = await fetch(fileUrl, {
+      headers: { Authorization: `token ${token}` },
+    });
+
+    if (!res.ok) throw new Error(`Error reading ${filePath}: ${res.status} ${res.statusText}`);
+
+    const data = await res.json();
+    if (data.encoding === 'base64') {
+      return atob(data.content);
+    } else {
+      return data.content;
+    }
   };
 
-  const inputStyle = {
-    display: 'block',
-    width: '100%',
-    marginBottom: '8px',
-    backgroundColor: darkMode ? '#333' : '#fff',
-    color: darkMode ? '#f0f0f0' : '#000',
-    border: darkMode ? '1px solid #555' : '1px solid #ccc'
+  const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
+    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+
+    const getRes = await fetch(fileUrl, {
+      headers: { Authorization: `token ${token}` },
+    });
+    const getData = await getRes.json();
+
+    const res = await fetch(fileUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: commitMessage,
+        content: btoa(newContent),
+        sha: getData.sha,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
+    }
   };
 
-  const buttonStyle = {
-    marginTop: '0.5rem',
-    backgroundColor: darkMode ? '#444' : '#eee',
-    color: darkMode ? '#fff' : '#000',
-  };
+  const sendMessage = async () => {
+    try {
+      setError(null);
+      const userMsg = { role: 'user', content: input };
+      setMessages(prev => [...prev, userMsg]);
+      setInput('');
 
-  const messageBoxStyle = {
-    border: '1px solid #ccc',
-    padding: '1rem',
-    marginTop: '1rem',
-    height: '300px',
-    overflowY: 'scroll',
-    backgroundColor: darkMode ? '#222' : '#fff',
-    color: darkMode ? '#f0f0f0' : '#000',
-  };
+      let updatedHistory = [...chatHistory, userMsg];
 
-  const errorStyle = {
-    backgroundColor: '#fee',
-    color: '#900',
-    padding: '1rem',
-    marginTop: '1rem',
-    whiteSpace: 'pre-wrap'
-  };
+      let fileListPrompt = '';
+      if (isFirstSend) {
+        const fileList = await fetchRepoFileList(githubRepo, githubKey);
+        fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
+        const systemPrompt = { role: 'system', content: 'You are a helpful coding assistant.' };
+        const fileListMessage = { role: 'user', content: fileListPrompt };
 
-  // (other methods like sendMessage, fetchRepoFileList, fetchFileContent, commitAndPushFile, etc. remain unchanged)
+        updatedHistory = [systemPrompt, fileListMessage, userMsg];
+        setMessages(prev => [...prev, { role: 'system', content: fileListPrompt }]);
+        setIsFirstSend(false);
+      }
+
+      const modelId = "gpt-4o-2024-08-06";
+      const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: updatedHistory,
+          functions: functions
+        })
+      });
+
+      const initialData = await initialRes.json();
+      if (!initialData.choices) {
+        throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(initialData, null, 2)}`);
+      }
+
+      const message = initialData.choices[0].message;
+
+      if (message.function_call) {
+        const { name: functionName, arguments: functionArgsRaw } = message.function_call;
+        const functionArgs = JSON.parse(functionArgsRaw);
+        const timestamp = new Date().toLocaleTimeString();
+
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'function',
+            content: `Function called: ${functionName} @ ${timestamp}\nArguments:\n${Object.entries(functionArgs)
+              .filter(([key]) => functionName === 'commit_file' ? key !== 'new_content' : true)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join('\n')}`
+          }
+        ]);
+
+        if (functionName === 'get_file_content') {
+          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
+          const functionMsg = {
+            role: 'function',
+            name: functionName,
+            content: fileContent
+          };
+          const finalHistory = [...updatedHistory, message, functionMsg];
+
+          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: modelId,
+              messages: finalHistory,
+            })
+          });
+
+          const finalData = await finalRes.json();
+          if (!finalData.choices) {
+            throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`);
+          }
+          const reply = finalData.choices[0].message.content;
+          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+          setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
+        } else if (functionName === 'commit_file') {
+          await commitAndPushFile(
+            githubRepo,
+            functionArgs.file_path,
+            functionArgs.new_content,
+            functionArgs.commit_message,
+            githubKey
+          );
+          setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
+          setChatHistory(updatedHistory.concat(message, {
+            role: 'function',
+            name: functionName,
+            content: 'File committed successfully.'
+          }, {
+            role: 'assistant',
+            content: 'File committed successfully.'
+          }));
+        }
+      } else {
+        const reply = message.content;
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        setChatHistory(updatedHistory.concat({ role: 'assistant', content: reply }));
+      }
+    } catch (err) {
+      const message = err instanceof Error
+        ? `${err.message}\n\n${err.stack}`
+        : JSON.stringify(err, null, 2);
+      setError(message);
+    }
+  };
 
   return (
-    <div style={containerStyle}>
+    <div style={{ padding: '1rem', fontFamily: 'sans-serif' }}>
       <h1 style={{ fontWeight: 'bold' }}>Vibe Code Assistant</h1>
-      
-      <button onClick={toggleDarkMode} style={buttonStyle}>
-        Toggle Dark Mode
-      </button>
-      
       <input
         placeholder="GitHub Repo URL"
         value={githubRepo}
         onChange={e => setGithubRepo(e.target.value)}
-        style={inputStyle}
+        style={{ display: 'block', width: '100%', marginBottom: '8px' }}
       />
       <input
         placeholder="GitHub API Key"
         type="password"
         value={githubKey}
         onChange={e => setGithubKey(e.target.value)}
-        style={inputStyle}
+        style={{ display: 'block', width: '100%', marginBottom: '8px' }}
       />
       <input
         placeholder="OpenAI API Key"
         type="password"
         value={openaiKey}
         onChange={e => setOpenaiKey(e.target.value)}
-        style={inputStyle}
+        style={{ display: 'block', width: '100%', marginBottom: '8px' }}
       />
-      <div style={messageBoxStyle}>
+      <div style={{ border: '1px solid #ccc', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ marginBottom: '1rem' }}>
             <strong>{m.role}:</strong> <pre style={{ whiteSpace: 'pre-wrap' }}>{m.content}</pre>
@@ -113,12 +270,12 @@ export default function Home() {
         rows={3}
         value={input}
         onChange={e => setInput(e.target.value)}
-        style={{ width: '100%', marginTop: '1rem', ...inputStyle }}
+        style={{ width: '100%', marginTop: '1rem' }}
       />
-      <button onClick={sendMessage} style={buttonStyle}>Send</button>
+      <button onClick={sendMessage} style={{ marginTop: '0.5rem' }}>Send</button>
 
       {error && (
-        <div style={errorStyle}>
+        <div style={{ backgroundColor: '#fee', color: '#900', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
           <strong>Error:</strong> {error}
         </div>
       )}
