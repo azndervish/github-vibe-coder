@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
 
 const functions = [
   {
@@ -284,31 +285,15 @@ export default function Home() {
 
   return (
     <div style={{ padding: '1rem', fontFamily: 'sans-serif', backgroundColor: '#121212', color: '#ffffff' }}>
-      <input
-        placeholder="GitHub Repo URL"
-        value={githubRepo}
-        onChange={e => setGithubRepo(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
-      <input
-        placeholder="GitHub API Key"
-        type="text"
-        value={githubKey}
-        onChange={e => setGithubKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
-      <input
-        placeholder="OpenAI API Key"
-        type="text"
-        value={openaiKey}
-        onChange={e => setOpenaiKey(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
-      />
-      <input
-        placeholder="Branch"
-        value={branch}
-        onChange={e => setBranch(e.target.value)}
-        style={{ display: 'block', width: '100%', marginBottom: '8px', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555' }}
+      <SettingsInputs 
+        githubRepo={githubRepo}
+        setGithubRepo={setGithubRepo}
+        githubKey={githubKey}
+        setGithubKey={setGithubKey}
+        openaiKey={openaiKey}
+        setOpenaiKey={setOpenaiKey}
+        branch={branch}
+        setBranch={setBranch}
       />
       <div style={{ border: '1px solid #555555', backgroundColor: '#1e1e1e', padding: '1rem', marginTop: '1rem', height: '300px', overflowY: 'scroll' }}>
         {messages.map((m, i) => (
