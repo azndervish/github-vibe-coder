@@ -4,6 +4,7 @@ import {
   fetchRepoFileList,
   fetchFileContent,
   commitAndPushFile,
+  deleteFile,  // Import the deleteFile function
   revertToPreviousCommit
 } from '../src/services/githubService';
 import { sendOpenAIMessage } from '../src/services/openAIService';
@@ -115,6 +116,21 @@ export default function Home() {
               content: 'File committed successfully.'
             };
             setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
+            updatedHistory.push(message, functionMsg);
+          } else if (functionName === 'delete_file') {
+            await deleteFile(
+              githubRepo,
+              functionArgs.file_path,
+              functionArgs.commit_message,
+              githubKey,
+              branch
+            );
+            const functionMsg = {
+              role: 'function',
+              name: functionName,
+              content: 'File deleted successfully.'
+            };
+            setMessages(prev => [...prev, { role: 'assistant', content: 'File deleted successfully.' }]);
             updatedHistory.push(message, functionMsg);
           }
 
