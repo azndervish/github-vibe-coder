@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import Home from '../pages/index'; // Update the import path for Home component
+import '@testing-library/jest-dom'; // Add this import to extend Jest matchers
+import Home from '../pages/index';
 
 test('renders Home component', () => {
   render(<Home />);
