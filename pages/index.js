@@ -23,6 +23,7 @@ export default function Home() {
   const [isFirstSend, setIsFirstSend] = useState(true);
   const [totalTokens, setTotalTokens] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [lastOpenAIResponse, setLastOpenAIResponse] = useState(''); // New state for last OpenAI response
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -68,6 +69,7 @@ export default function Home() {
 
       const initialData = await sendOpenAIMessage(openaiKey, updatedHistory, "gpt-4o-2024-08-06");
       const message = initialData.choices[0].message;
+      setLastOpenAIResponse(message.content); // Update lastOpenAIResponse state with the initial response
 
       const tokenUsage = initialData.usage.total_tokens || 0;
       setTotalTokens(prev => prev + tokenUsage);
@@ -99,6 +101,7 @@ export default function Home() {
 
           const finalData = await sendOpenAIMessage(openaiKey, finalHistory, "gpt-4o-2024-08-06");
           const reply = finalData.choices[0].message.content;
+          setLastOpenAIResponse(reply); // Update lastOpenAIResponse state with the final response
           const finalTokenUsage = finalData.usage.total_tokens || 0;
           setTotalTokens(prev => prev + finalTokenUsage);
 
@@ -194,6 +197,11 @@ export default function Home() {
         branch={branch}
         setBranch={setBranch}
       />
+
+      <div style={{ backgroundColor: '#2e2e2e', padding: '1rem', marginTop: '1rem', borderRadius: '0.5rem' }}>
+        <strong>Last OpenAI Response:</strong>
+        <pre style={{ whiteSpace: 'pre-wrap', color: '#ffffff' }}>{lastOpenAIResponse}</pre>
+      </div>
 
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
         {branchEnv} ({commitHashEnv?.substring(0, 6)})
