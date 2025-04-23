@@ -69,7 +69,7 @@ export default function Home() {
 
       const initialData = await sendOpenAIMessage(openaiKey, updatedHistory, "gpt-4o-2024-08-06");
       const message = initialData.choices[0].message;
-      setLastOpenAIResponse(message.content); // Update lastOpenAIResponse state with the initial response
+      setLastOpenAIResponse(JSON.stringify(initialData, null, 2)); // Update lastOpenAIResponse with the entire JSON response
 
       const tokenUsage = initialData.usage.total_tokens || 0;
       setTotalTokens(prev => prev + tokenUsage);
@@ -101,7 +101,7 @@ export default function Home() {
 
           const finalData = await sendOpenAIMessage(openaiKey, finalHistory, "gpt-4o-2024-08-06");
           const reply = finalData.choices[0].message.content;
-          setLastOpenAIResponse(reply); // Update lastOpenAIResponse state with the final response
+          setLastOpenAIResponse(JSON.stringify(finalData, null, 2)); // Update lastOpenAIResponse with the entire JSON response of the final data
           const finalTokenUsage = finalData.usage.total_tokens || 0;
           setTotalTokens(prev => prev + finalTokenUsage);
 
@@ -200,7 +200,7 @@ export default function Home() {
 
       <div style={{ backgroundColor: '#2e2e2e', padding: '1rem', marginTop: '1rem', borderRadius: '0.5rem' }}>
         <strong>Last OpenAI Response:</strong>
-        <pre style={{ whiteSpace: 'pre-wrap', color: '#ffffff' }}>{lastOpenAIResponse}</pre>
+        <pre style={{ whiteSpace: 'pre-wrap', color: '#ffffff', maxHeight: '200px', overflowY: 'auto' }}>{lastOpenAIResponse}</pre>
       </div>
 
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
