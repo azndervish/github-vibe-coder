@@ -1,5 +1,3 @@
-// components/MessageInput.js
-
 import React from 'react';
 
 export default function MessageInput({
@@ -49,10 +47,10 @@ export default function MessageInput({
             color: '#ffffff',
             border: 'none',
             padding: '0.5rem 1rem',
-            cursor: 'pointer'
+            cursor: isLoading ? 'not-allowed' : 'pointer'
           }}
         >
-          Send
+          {isLoading ? 'Sending...' : 'Send'}
         </button>
       </div>
     </div>
