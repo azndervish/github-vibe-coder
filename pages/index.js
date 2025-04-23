@@ -8,6 +8,7 @@ import {
 } from '../src/services/githubService';
 import { sendOpenAIMessage } from '../src/services/openAIService';
 import MessageInput from '../components/MessageInput';  // Import MessageInput Component
+import { systemPrompt } from '../src/prompts/systemPrompt'; // Import system prompt
 
 
 export default function Home() {
@@ -59,8 +60,8 @@ export default function Home() {
       if (isFirstSend) {
         const fileList = await fetchRepoFileList(githubRepo, githubKey, branch);
         const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
-        const systemPrompt = { role: 'system', content: 'You are a helpful coding assistant.' };
-        updatedHistory = [systemPrompt, { role: 'user', content: fileListPrompt }, userMsg];
+        const systemPromptMessage = { role: 'system', content: systemPrompt };
+        updatedHistory = [systemPromptMessage, { role: 'user', content: fileListPrompt }, userMsg];
         setMessages(prev => [...prev, { role: 'system', content: fileListPrompt }]);
         setIsFirstSend(false);
       }
