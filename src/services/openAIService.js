@@ -37,6 +37,24 @@ const functions = [
       },
       required: ["file_path", "new_content", "commit_message"]
     }
+  },
+  {
+    name: "delete_file",
+    description: "Delete a specific file from a GitHub repository.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file to be deleted."
+        },
+        commit_message: {
+          type: "string",
+          description: "A short message describing the deletion."
+        }
+      },
+      required: ["file_path", "commit_message"]
+    }
   }
 ];
 

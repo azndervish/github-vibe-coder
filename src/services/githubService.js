@@ -169,3 +169,54 @@ export async function revertToPreviousCommit(repoUrl, token, branch) {
     throw new Error(`Failed to revert to previous commit: ${error.message}`);
   }
 }
+
+/**
+ * Delete a file from a GitHub repository.
+ * 
+ * @param {string} repoUrl - The GitHub repository URL.
+ * @param {string} filePath - The path to the file in the repository.
+ * @param {string} commitMessage - The commit message for the deletion.
+ * @param {string} token - The GitHub access token.
+ * @param {string} branch - The branch where the file is located.
+ * @returns {Promise<void>}
+ */
+export async function deleteFile(repoUrl, filePath, commitMessage, token, branch) {
+  const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
+  const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+
+  try {
+    // Get the file's SHA
+    const getRes = await fetch(`${fileUrl}?ref=${branch}`, {
+      headers: { Authorization: `token ${token}` },
+    });
+
+    if (!getRes.ok) {
+      throw new Error(`Failed to fetch file details: ${getRes.status} ${getRes.statusText}`);
+    }
+
+    const getData = await getRes.json();
+    const sha = getData.sha;
+
+    // Delete the file
+    const res = await fetch(fileUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: commitMessage,
+        sha: sha,
+        branch: branch,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to delete ${filePath}: ${res.status} ${res.statusText}`);
+    } else {
+      console.info(`File ${filePath} deleted successfully.`);
+    }
+  } catch (error) {
+    console.error(`Error deleting file ${filePath}: ${error.message}`);
+  }
+}
