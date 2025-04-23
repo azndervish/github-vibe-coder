@@ -67,70 +67,64 @@ export default function Home() {
         setIsFirstSend(false);
       }
 
-      const initialData = await sendOpenAIMessage(openaiKey, updatedHistory, "gpt-4o-2024-08-06");
-      const message = initialData.choices[0].message;
-      setLastOpenAIResponse(JSON.stringify(initialData, null, 2)); // Update lastOpenAIResponse with the entire JSON response
+      let data;
+      do {
+        data = await sendOpenAIMessage(openaiKey, updatedHistory, "gpt-4o-2024-08-06");
+        const message = data.choices[0].message;
+        setLastOpenAIResponse(JSON.stringify(data, null, 2));
 
-      const tokenUsage = initialData.usage.total_tokens || 0;
-      setTotalTokens(prev => prev + tokenUsage);
+        const tokenUsage = data.usage.total_tokens || 0;
+        setTotalTokens(prev => prev + tokenUsage);
 
-      if (message.function_call) {
-        const { name: functionName, arguments: functionArgsRaw } = message.function_call;
-        const functionArgs = JSON.parse(functionArgsRaw);
-        const timestamp = new Date().toLocaleTimeString();
+        if (message.function_call) {
+          const { name: functionName, arguments: functionArgsRaw } = message.function_call;
+          const functionArgs = JSON.parse(functionArgsRaw);
+          const timestamp = new Date().toLocaleTimeString();
 
-        setMessages(prev => [
-          ...prev,
-          {
-            role: 'function',
-            content: `Function called: ${functionName} @ ${timestamp}\nArguments:\n${Object.entries(functionArgs)
-              .filter(([key]) => functionName === 'commit_file' ? key !== 'new_content' : true)
-              .map(([key, value]) => `${key}: ${value}`)
-              .join('\n')}`
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'function',
+              content: `Function called: ${functionName} @ ${timestamp}\nArguments:\n${Object.entries(functionArgs)
+                .filter(([key]) => functionName === 'commit_file' ? key !== 'new_content' : true)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n')}`
+            }
+          ]);
+
+          if (functionName === 'get_file_content') {
+            const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey, branch);
+            const functionMsg = {
+              role: 'function',
+              name: functionName,
+              content: fileContent
+            };
+            updatedHistory.push(message, functionMsg);
+          } else if (functionName === 'commit_file') {
+            await commitAndPushFile(
+              githubRepo,
+              functionArgs.file_path,
+              functionArgs.new_content,
+              functionArgs.commit_message,
+              githubKey,
+              branch
+            );
+            const functionMsg = {
+              role: 'function',
+              name: functionName,
+              content: 'File committed successfully.'
+            };
+            setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
+            updatedHistory.push(message, functionMsg);
           }
-        ]);
 
-        if (functionName === 'get_file_content') {
-          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey, branch);
-          const functionMsg = {
-            role: 'function',
-            name: functionName,
-            content: fileContent
-          };
-          const finalHistory = [...updatedHistory, message, functionMsg];
-
-          const finalData = await sendOpenAIMessage(openaiKey, finalHistory, "gpt-4o-2024-08-06");
-          const reply = finalData.choices[0].message.content;
-          setLastOpenAIResponse(JSON.stringify(finalData, null, 2)); // Update lastOpenAIResponse with the entire JSON response of the final data
-          const finalTokenUsage = finalData.usage.total_tokens || 0;
-          setTotalTokens(prev => prev + finalTokenUsage);
-
+        } else {
+          const reply = message.content;
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-          setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
-        } else if (functionName === 'commit_file') {
-          await commitAndPushFile(
-            githubRepo,
-            functionArgs.file_path,
-            functionArgs.new_content,
-            functionArgs.commit_message,
-            githubKey,
-            branch
-          );
-          setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
-          setChatHistory(updatedHistory.concat(message, {
-            role: 'function',
-            name: functionName,
-            content: 'File committed successfully.'
-          }, {
-            role: 'assistant',
-            content: 'File committed successfully.'
-          }));
+          setChatHistory(updatedHistory.concat({ role: 'assistant', content: reply }));
+          break;
         }
-      } else {
-        const reply = message.content;
-        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-        setChatHistory(updatedHistory.concat({ role: 'assistant', content: reply }));
-      }
+      } while (data.choices[0].message.function_call);
     } catch (err) {
       const message = err instanceof Error
         ? `${err.message}\n\n${err.stack}`
