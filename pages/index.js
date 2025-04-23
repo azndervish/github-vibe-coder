@@ -7,6 +7,8 @@ import {
   revertToPreviousCommit
 } from '../services/githubService';
 import { sendOpenAIMessage } from '../services/openAIService';
+import MessageInput from '../components/MessageInput';  // Import MessageInput Component
+
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -135,6 +137,20 @@ export default function Home() {
     }
   };
 
+  const handleRevert = async () => {
+    setIsLoading(true);
+    try {
+      const previousCommitHash = await revertToPreviousCommit(githubRepo, githubKey, branch);
+      setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const canRevert = branch !== 'main'; // You might need to adjust this based on actual logic
+
   const branchEnv = process.env.NEXT_PUBLIC_BRANCH;
   const commitHashEnv = process.env.NEXT_PUBLIC_COMMIT_HASH;
 
@@ -148,20 +164,17 @@ export default function Home() {
         ))}
       </div>
 
-      <textarea
-        rows={3}
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555', marginBottom: '1rem' }}
+      <MessageInput
+        input={input}
+        setInput={setInput}
+        sendMessage={sendMessage}
+        isLoading={isLoading}
+        onRevert={handleRevert}
+        canRevert={canRevert}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-        {isLoading ? (
-          <div style={{ color: '#ffffff', padding: '0.5rem 1rem' }}>Loading...</div>
-        ) : (
-          <button onClick={sendMessage} disabled={isLoading} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
-        )}
-        <span style={{ marginLeft: '0.5rem', color: '#ffffff' }}>Tokens used: {totalTokens}</span>
+      <div style={{ marginTop: '0.5rem', color: '#ffffff' }}>
+        Tokens used: {totalTokens}
       </div>
 
       {error && (
@@ -180,31 +193,6 @@ export default function Home() {
         branch={branch}
         setBranch={setBranch}
       />
-
-      <button 
-        onClick={async () => {
-          setIsLoading(true);
-          try {
-            const previousCommitHash = await revertToPreviousCommit(githubRepo, githubKey, branch);
-            setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
-          } catch (error) {
-            setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
-          } finally {
-            setIsLoading(false);
-          }
-        }} 
-        disabled={isLoading || branch === 'main'} 
-        style={{ 
-          marginTop: '1rem', 
-          backgroundColor: '#333333', 
-          color: '#ffffff', 
-          border: 'none', 
-          padding: '0.5rem 1rem', 
-          cursor: isLoading || branch === 'main' ? 'not-allowed' : 'pointer'  
-        }}
-      >
-        {isLoading ? 'Loading...' : 'Revert'}
-      </button>
 
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
         {branchEnv} ({commitHashEnv?.substring(0, 6)})
