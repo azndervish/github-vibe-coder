@@ -158,6 +158,70 @@ export default function Home() {
     }
   };
 
+  const revertToPreviousCommit = async () => {
+    setIsLoading(true); // Disable buttons by setting loading state
+    
+    try {
+      const [owner, repo] = githubRepo.replace('https://github.com/', '').split('/');
+      
+      // Step 1: Get previous commit hash
+      const commitsUrl = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}`;
+      const commitsRes = await fetch(commitsUrl, {
+        headers: { Authorization: `token ${githubKey}` },
+      });
+      const commitsData = await commitsRes.json();
+      if (commitsData.length < 2) throw new Error("No previous commit to revert to.");
+      
+      const previousCommitHash = commitsData[1].sha;
+      const swapBranchName = `temp-revert-${new Date().getTime()}`;
+
+      // Step 2: Create a temporary branch from the previous commit
+      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
+        method: 'POST',
+        headers: {
+          Authorization: `token ${githubKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ref: `refs/heads/${swapBranchName}`,
+          sha: previousCommitHash,
+        }),
+      });
+
+      // Step 3: Delete the current branch
+      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+        method: 'DELETE',
+        headers: { Authorization: `token ${githubKey}` },
+      });
+
+      // Step 4: Recreate the original branch from the temporary swap
+      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
+        method: 'POST',
+        headers: {
+          Authorization: `token ${githubKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ref: `refs/heads/${branch}`,
+          sha: previousCommitHash,
+        }),
+      });
+
+      // Step 5: Delete the swap branch
+      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${swapBranchName}`, {
+        method: 'DELETE',
+        headers: { Authorization: `token ${githubKey}` },
+      });
+
+      // Step 6: Notify user
+      setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
+    } finally {
+      setIsLoading(false); // Re-enable buttons
+    }
+  };
+
   const sendMessage = async () => {
     try {
       setError(null);
@@ -329,6 +393,9 @@ export default function Home() {
         branch={branch}
         setBranch={setBranch}
       />
+
+      <button onClick={revertToPreviousCommit} disabled={isLoading} style={{ marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Revert</button>
+
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
         {branchEnv} ({commitHashEnv?.substring(0, 6)})
       </div>
