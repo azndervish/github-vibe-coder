@@ -394,7 +394,13 @@ export default function Home() {
         setBranch={setBranch}
       />
 
-      <button onClick={revertToPreviousCommit} disabled={isLoading} style={{ marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Revert</button>
+      <button 
+        onClick={revertToPreviousCommit} 
+        disabled={isLoading} 
+        style={{ marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: isLoading ? 'default' : 'pointer' }}
+      >
+        {isLoading ? 'Loading...' : 'Revert'}
+      </button>
 
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
         {branchEnv} ({commitHashEnv?.substring(0, 6)})
