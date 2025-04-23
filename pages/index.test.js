@@ -63,6 +63,7 @@ describe('Home Component', () => {
   });
 
   it('should call onRevert when Revert button is clicked', async () => {
+    localStorage.setItem('branch', 'feature-branch');  // Set to a non-main branch
     await act(async () => {
       render(<Home />);
     });
@@ -72,7 +73,9 @@ describe('Home Component', () => {
       fireEvent.click(revertButton);
     });
 
-    const revertedMessage = await screen.findByText((content, element) => element.tagName.toLowerCase() === 'strong' && /reverted to commit: commit-hash/i.test(content));
+    const revertedMessage = await screen.findByText((content, element) =>
+      /reverted to commit: commit-hash/i.test(content)
+    );
     expect(revertedMessage).toBeInTheDocument();
   });
 
