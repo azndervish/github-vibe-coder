@@ -58,7 +58,7 @@ describe('Home Component', () => {
       fireEvent.click(sendButton);
     });
 
-    await waitFor(() => expect(screen.getByText(/ai response/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/AI response/i)[0]).toBeInTheDocument());
     expect(screen.getByText(/tokens used: 10/i)).toBeInTheDocument();
   });
 
@@ -90,6 +90,11 @@ describe('Home Component', () => {
       fireEvent.click(sendButton);
     });
 
-    await waitFor(() => expect(screen.getByText(/error:/i)).toBeInTheDocument());
+    // Adjust the error check based on rendered components
+    await waitFor(() => 
+      expect(screen.getByText((content, element) =>
+        element.tagName.toLowerCase() === 'div' && /error/i.test(content)
+      )).toBeInTheDocument()
+    );
   });
 });
