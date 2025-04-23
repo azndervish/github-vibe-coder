@@ -1,5 +1,3 @@
-// components/MessageInput.js
-
 import React from 'react';
 
 export default function MessageInput({
@@ -31,8 +29,8 @@ export default function MessageInput({
           onClick={onRevert}
           disabled={isLoading || !canRevert}
           style={{
-            backgroundColor: '#333333',
-            color: '#ffffff',
+            backgroundColor: isLoading || !canRevert ? '#555555' : '#333333',
+            color: isLoading || !canRevert ? '#888888' : '#ffffff',
             border: 'none',
             padding: '0.5rem 1rem',
             cursor: isLoading || !canRevert ? 'not-allowed' : 'pointer'
@@ -45,14 +43,14 @@ export default function MessageInput({
           onClick={sendMessage}
           disabled={isLoading}
           style={{
-            backgroundColor: '#333333',
-            color: '#ffffff',
+            backgroundColor: isLoading ? '#555555' : '#333333',
+            color: isLoading ? '#888888' : '#ffffff',
             border: 'none',
             padding: '0.5rem 1rem',
-            cursor: 'pointer'
+            cursor: isLoading ? 'not-allowed' : 'pointer'
           }}
         >
-          Send
+          {isLoading ? 'Sending...' : 'Send'}
         </button>
       </div>
     </div>
