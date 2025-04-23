@@ -1,50 +1,12 @@
 import { useEffect, useState } from 'react';
-import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
+import SettingsInputs from './SettingsInputs';
 import {
   fetchRepoFileList,
   fetchFileContent,
   commitAndPushFile,
   revertToPreviousCommit
 } from '../services/githubService';
-
-const functions = [ // Add back the functions
-  {
-    name: "get_file_content",
-    description: "Retrieve the content of a specific file from a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file within the repository (e.g., 'src/app.js')."
-        }
-      },
-      required: ["file_path"]
-    }
-  },
-  {
-    name: "commit_file",
-    description: "Commit and push changes to a specific file in a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file being updated."
-        },
-        new_content: {
-          type: "string",
-          description: "The updated content of the file."
-        },
-        commit_message: {
-          type: "string",
-          description: "A short message describing the change."
-        }
-      },
-      required: ["file_path", "new_content", "commit_message"]
-    }
-  }
-];
+import { sendOpenAIMessage } from '../services/openAIService';
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -57,7 +19,7 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
   const [totalTokens, setTotalTokens] = useState(0);
-  const [isLoading, setIsLoading] = useState(false); // New loading state
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -85,48 +47,27 @@ export default function Home() {
   const sendMessage = async () => {
     try {
       setError(null);
-      setIsLoading(true); // Set loading to true at the start of the function
+      setIsLoading(true);
       const userMsg = { role: 'user', content: input };
       setMessages(prev => [...prev, userMsg]);
       setInput('');
 
       let updatedHistory = [...chatHistory, userMsg];
 
-      let fileListPrompt = '';
       if (isFirstSend) {
         const fileList = await fetchRepoFileList(githubRepo, githubKey, branch);
-        fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
+        const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
         const systemPrompt = { role: 'system', content: 'You are a helpful coding assistant.' };
-        const fileListMessage = { role: 'user', content: fileListPrompt };
-
-        updatedHistory = [systemPrompt, fileListMessage, userMsg];
+        updatedHistory = [systemPrompt, { role: 'user', content: fileListPrompt }, userMsg];
         setMessages(prev => [...prev, { role: 'system', content: fileListPrompt }]);
         setIsFirstSend(false);
       }
 
-      const modelId = "gpt-4o-2024-08-06";
-      const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: modelId,
-          messages: updatedHistory,
-          functions: functions // Corrected, include functions
-        })
-      });
-
-      const initialData = await initialRes.json();
-      if (!initialData.choices) {
-        throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(initialData, null, 2)}`);
-      }
-
+      const initialData = await sendOpenAIMessage(openaiKey, updatedHistory, "gpt-4o-2024-08-06");
       const message = initialData.choices[0].message;
 
       const tokenUsage = initialData.usage.total_tokens || 0;
-      setTotalTokens((prev) => prev + tokenUsage);
+      setTotalTokens(prev => prev + tokenUsage);
 
       if (message.function_call) {
         const { name: functionName, arguments: functionArgsRaw } = message.function_call;
@@ -153,25 +94,10 @@ export default function Home() {
           };
           const finalHistory = [...updatedHistory, message, functionMsg];
 
-          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: modelId,
-              messages: finalHistory,
-            })
-          });
-
-          const finalData = await finalRes.json();
-          if (!finalData.choices) {
-            throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`);
-          }
+          const finalData = await sendOpenAIMessage(openaiKey, finalHistory, "gpt-4o-2024-08-06");
           const reply = finalData.choices[0].message.content;
           const finalTokenUsage = finalData.usage.total_tokens || 0;
-          setTotalTokens((prev) => prev + finalTokenUsage);
+          setTotalTokens(prev => prev + finalTokenUsage);
 
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
           setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
@@ -205,7 +131,7 @@ export default function Home() {
         : JSON.stringify(err, null, 2);
       setError(message);
     } finally {
-      setIsLoading(false); // Set loading to false at the end of the function
+      setIsLoading(false);
     }
   };
 
@@ -257,25 +183,24 @@ export default function Home() {
 
       <button 
         onClick={async () => {
-          setIsLoading(true); // Disable buttons by setting loading state
+          setIsLoading(true);
           try {
             const previousCommitHash = await revertToPreviousCommit(githubRepo, githubKey, branch);
-
             setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
           } catch (error) {
             setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
           } finally {
-            setIsLoading(false); // Re-enable buttons
+            setIsLoading(false);
           }
         }} 
-        disabled={isLoading || branch === 'main'} // Disable if either loading or on the main branch
+        disabled={isLoading || branch === 'main'} 
         style={{ 
           marginTop: '1rem', 
           backgroundColor: '#333333', 
           color: '#ffffff', 
           border: 'none', 
           padding: '0.5rem 1rem', 
-          cursor: isLoading || branch === 'main' ? 'not-allowed' : 'pointer'  // Optional: change cursor when disabled
+          cursor: isLoading || branch === 'main' ? 'not-allowed' : 'pointer'  
         }}
       >
         {isLoading ? 'Loading...' : 'Revert'}
