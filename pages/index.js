@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import SettingsInputs from './SettingsInputs';
+import SettingsInputs from '../components/SettingsInputs'; // Updated import path
 import {
   fetchRepoFileList,
   fetchFileContent,
