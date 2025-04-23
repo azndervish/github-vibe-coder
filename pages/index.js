@@ -5,7 +5,7 @@ import {
   fetchFileContent,
   commitAndPushFile,
   revertToPreviousCommit
-} from '../services/githubService';
+} from '../../src/services/githubService';
 import { sendOpenAIMessage } from '../services/openAIService';
 import MessageInput from '../components/MessageInput';  // Import MessageInput Component
 
