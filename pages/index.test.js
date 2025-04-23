@@ -72,13 +72,12 @@ describe('Home Component', () => {
       fireEvent.click(revertButton);
     });
 
-    await waitFor(() => expect(screen.getByText(/reverted to commit: commit-hash/i)).toBeInTheDocument());
+    const revertedMessage = await screen.findByText((content, element) => element.tagName.toLowerCase() === 'strong' && /reverted to commit: commit-hash/i.test(content));
+    expect(revertedMessage).toBeInTheDocument();
   });
 
   it('should display error when fetch calls fail', async () => {
-    jest.mock('../src/services/githubService', () => ({
-      fetchRepoFileList: jest.fn().mockRejectedValue(new Error('Network Error'))
-    }));
+    jest.spyOn(require('../src/services/githubService'), 'fetchRepoFileList').mockRejectedValue(new Error('Network Error'));
 
     await act(async () => {
       render(<Home />);
@@ -90,11 +89,7 @@ describe('Home Component', () => {
       fireEvent.click(sendButton);
     });
 
-    // Adjust the error check based on rendered components
-    await waitFor(() => 
-      expect(screen.getByText((content, element) =>
-        element.tagName.toLowerCase() === 'div' && /error/i.test(content)
-      )).toBeInTheDocument()
-    );
+    const errorMessage = await screen.findByText((content, element) => element.tagName.toLowerCase() === 'strong' && /error/i.test(content));
+    expect(errorMessage).toBeInTheDocument();
   });
 });
