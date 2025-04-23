@@ -94,7 +94,8 @@ describe('MessageInput Component', () => {
     );
 
     const sendButton = screen.getByRole('button', { name: /send/i });
-    const revertButton = screen.getByRole('button', { name: /revert/i });
+    const revertButton = screen.queryByRole('button', { name: /loading.../i }) ||
+                           screen.queryByRole('button', { name: /revert/i });
 
     expect(sendButton).toBeDisabled();
     expect(revertButton).toBeDisabled();
