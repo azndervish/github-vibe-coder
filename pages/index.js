@@ -1,44 +1,14 @@
 import { useEffect, useState } from 'react';
-import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
+import SettingsInputs from './SettingsInputs';
+import {
+  fetchRepoFileList,
+  fetchFileContent,
+  commitAndPushFile,
+  revertToPreviousCommit
+} from '../src/services/githubService';
+import { sendOpenAIMessage } from '../src/services/openAIService';
+import MessageInput from '../components/MessageInput';  // Import MessageInput Component
 
-const functions = [ // Add back the functions
-  {
-    name: "get_file_content",
-    description: "Retrieve the content of a specific file from a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file within the repository (e.g., 'src/app.js')."
-        }
-      },
-      required: ["file_path"]
-    }
-  },
-  {
-    name: "commit_file",
-    description: "Commit and push changes to a specific file in a GitHub repository.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: {
-          type: "string",
-          description: "The path to the file being updated."
-        },
-        new_content: {
-          type: "string",
-          description: "The updated content of the file."
-        },
-        commit_message: {
-          type: "string",
-          description: "A short message describing the change."
-        }
-      },
-      required: ["file_path", "new_content", "commit_message"]
-    }
-  }
-];
 
 export default function Home() {
   const [githubRepo, setGithubRepo] = useState('');
@@ -51,7 +21,7 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState([]);
   const [isFirstSend, setIsFirstSend] = useState(true);
   const [totalTokens, setTotalTokens] = useState(0);
-  const [isLoading, setIsLoading] = useState(false); // New loading state
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const storedRepo = localStorage.getItem('githubRepo');
@@ -76,197 +46,30 @@ export default function Home() {
     localStorage.setItem('branch', branch);
   }, [githubRepo, githubKey, openaiKey, branch]);
 
-  const fetchRepoFileList = async (repoUrl, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-    const res = await fetch(treeUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-    const data = await res.json();
-    return data.tree?.filter(item => item.type === 'blob').map(item => item.path) || [];
-  };
-
-  const fetchFileContent = async (repoUrl, filePath, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
-    const res = await fetch(fileUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-
-    if (!res.ok) throw new Error(`Error reading ${filePath}: ${res.status} ${res.statusText}`);
-
-    const data = await res.json();
-    if (data.encoding === 'base64') {
-      return atob(data.content);
-    } else {
-      return data.content;
-    }
-  };
-
-  const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
-
-    let sha = null;
-
-    // First try-catch block for GET request to check if file exists
-    try {
-      const getRes = await fetch(fileUrl, {
-        headers: { Authorization: `token ${token}` },
-      });
-
-      if (getRes.ok) {
-        const getData = await getRes.json();
-        sha = getData.sha;
-      } else if (getRes.status === 404) {
-        console.log(`File ${filePath} does not exist, it will be created.`);
-      } else {
-        throw new Error(`Failed to fetch file details: ${getRes.status} ${getRes.statusText}`);
-      }
-    } catch (error) {
-      console.error(`Error fetching file details for ${filePath}: ${error.message}`);
-      return; // Exiting early as GET failed for unknown reason
-    }
-
-    // Second try-catch block for PUT request to commit file
-    try {
-      const headers = {
-        Authorization: `token ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      const body = JSON.stringify({
-        message: commitMessage,
-        content: btoa(newContent),
-        ...(sha ? { sha } : {}),
-        branch: branch,
-      });
-
-      const res = await fetch(fileUrl, {
-        method: 'PUT',
-        headers: headers,
-        body: body,
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
-      } else {
-        console.info(`File ${filePath} committed successfully.`);
-      }
-    } catch (error) {
-      console.error(`Error committing file ${filePath}: ${error.message}`);
-    }
-  };
-
-  const revertToPreviousCommit = async () => {
-    setIsLoading(true); // Disable buttons by setting loading state
-    
-    try {
-      const [owner, repo] = githubRepo.replace('https://github.com/', '').split('/');
-      
-      // Step 1: Get previous commit hash
-      const commitsUrl = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}`;
-      const commitsRes = await fetch(commitsUrl, {
-        headers: { Authorization: `token ${githubKey}` },
-      });
-      const commitsData = await commitsRes.json();
-      if (commitsData.length < 2) throw new Error("No previous commit to revert to.");
-      
-      const previousCommitHash = commitsData[1].sha;
-      const swapBranchName = `temp-revert-${new Date().getTime()}`;
-
-      // Step 2: Create a temporary branch from the previous commit
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
-        method: 'POST',
-        headers: {
-          Authorization: `token ${githubKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ref: `refs/heads/${swapBranchName}`,
-          sha: previousCommitHash,
-        }),
-      });
-
-      // Step 3: Delete the current branch
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
-        method: 'DELETE',
-        headers: { Authorization: `token ${githubKey}` },
-      });
-
-      // Step 4: Recreate the original branch from the temporary swap
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
-        method: 'POST',
-        headers: {
-          Authorization: `token ${githubKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ref: `refs/heads/${branch}`,
-          sha: previousCommitHash,
-        }),
-      });
-
-      // Step 5: Delete the swap branch
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${swapBranchName}`, {
-        method: 'DELETE',
-        headers: { Authorization: `token ${githubKey}` },
-      });
-
-      // Step 6: Notify user
-      setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
-    } finally {
-      setIsLoading(false); // Re-enable buttons
-    }
-  };
-
   const sendMessage = async () => {
     try {
       setError(null);
-      setIsLoading(true); // Set loading to true at the start of the function
+      setIsLoading(true);
       const userMsg = { role: 'user', content: input };
       setMessages(prev => [...prev, userMsg]);
       setInput('');
 
       let updatedHistory = [...chatHistory, userMsg];
 
-      let fileListPrompt = '';
       if (isFirstSend) {
-        const fileList = await fetchRepoFileList(githubRepo, githubKey);
-        fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
+        const fileList = await fetchRepoFileList(githubRepo, githubKey, branch);
+        const fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
         const systemPrompt = { role: 'system', content: 'You are a helpful coding assistant.' };
-        const fileListMessage = { role: 'user', content: fileListPrompt };
-
-        updatedHistory = [systemPrompt, fileListMessage, userMsg];
+        updatedHistory = [systemPrompt, { role: 'user', content: fileListPrompt }, userMsg];
         setMessages(prev => [...prev, { role: 'system', content: fileListPrompt }]);
         setIsFirstSend(false);
       }
 
-      const modelId = "gpt-4o-2024-08-06";
-      const initialRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: modelId,
-          messages: updatedHistory,
-          functions: functions // Corrected, include functions
-        })
-      });
-
-      const initialData = await initialRes.json();
-      if (!initialData.choices) {
-        throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(initialData, null, 2)}`);
-      }
-
+      const initialData = await sendOpenAIMessage(openaiKey, updatedHistory, "gpt-4o-2024-08-06");
       const message = initialData.choices[0].message;
 
       const tokenUsage = initialData.usage.total_tokens || 0;
-      setTotalTokens((prev) => prev + tokenUsage);
+      setTotalTokens(prev => prev + tokenUsage);
 
       if (message.function_call) {
         const { name: functionName, arguments: functionArgsRaw } = message.function_call;
@@ -285,7 +88,7 @@ export default function Home() {
         ]);
 
         if (functionName === 'get_file_content') {
-          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
+          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey, branch);
           const functionMsg = {
             role: 'function',
             name: functionName,
@@ -293,25 +96,10 @@ export default function Home() {
           };
           const finalHistory = [...updatedHistory, message, functionMsg];
 
-          const finalRes = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: modelId,
-              messages: finalHistory,
-            })
-          });
-
-          const finalData = await finalRes.json();
-          if (!finalData.choices) {
-            throw new Error(`OpenAI API returned an unexpected response:\n\n${JSON.stringify(finalData, null, 2)}`);
-          }
+          const finalData = await sendOpenAIMessage(openaiKey, finalHistory, "gpt-4o-2024-08-06");
           const reply = finalData.choices[0].message.content;
           const finalTokenUsage = finalData.usage.total_tokens || 0;
-          setTotalTokens((prev) => prev + finalTokenUsage);
+          setTotalTokens(prev => prev + finalTokenUsage);
 
           setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
           setChatHistory(finalHistory.concat({ role: 'assistant', content: reply }));
@@ -321,7 +109,8 @@ export default function Home() {
             functionArgs.file_path,
             functionArgs.new_content,
             functionArgs.commit_message,
-            githubKey
+            githubKey,
+            branch
           );
           setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
           setChatHistory(updatedHistory.concat(message, {
@@ -344,9 +133,23 @@ export default function Home() {
         : JSON.stringify(err, null, 2);
       setError(message);
     } finally {
-      setIsLoading(false); // Set loading to false at the end of the function
+      setIsLoading(false);
     }
   };
+
+  const handleRevert = async () => {
+    setIsLoading(true);
+    try {
+      const previousCommitHash = await revertToPreviousCommit(githubRepo, githubKey, branch);
+      setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const canRevert = branch !== 'main'; // You might need to adjust this based on actual logic
 
   const branchEnv = process.env.NEXT_PUBLIC_BRANCH;
   const commitHashEnv = process.env.NEXT_PUBLIC_COMMIT_HASH;
@@ -361,20 +164,17 @@ export default function Home() {
         ))}
       </div>
 
-      <textarea
-        rows={3}
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        style={{ width: '100%', marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: '1px solid #555555', marginBottom: '1rem' }}
+      <MessageInput
+        input={input}
+        setInput={setInput}
+        sendMessage={sendMessage}
+        isLoading={isLoading}
+        onRevert={handleRevert}
+        canRevert={canRevert}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-        {isLoading ? (
-          <div style={{ color: '#ffffff', padding: '0.5rem 1rem' }}>Loading...</div>
-        ) : (
-          <button onClick={sendMessage} disabled={isLoading} style={{ marginTop: '0.5rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer' }}>Send</button>
-        )}
-        <span style={{ marginLeft: '0.5rem', color: '#ffffff' }}>Tokens used: {totalTokens}</span>
+      <div style={{ marginTop: '0.5rem', color: '#ffffff' }}>
+        Tokens used: {totalTokens}
       </div>
 
       {error && (
@@ -393,14 +193,6 @@ export default function Home() {
         branch={branch}
         setBranch={setBranch}
       />
-
-      <button 
-        onClick={revertToPreviousCommit} 
-        disabled={isLoading} 
-        style={{ marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: isLoading ? 'default' : 'pointer' }}
-      >
-        {isLoading ? 'Loading...' : 'Revert'}
-      </button>
 
       <div style={{ marginTop: '2rem', padding: '1rem', color: '#cccccc' }}>
         {branchEnv} ({commitHashEnv?.substring(0, 6)})
