@@ -396,8 +396,15 @@ export default function Home() {
 
       <button 
         onClick={revertToPreviousCommit} 
-        disabled={isLoading} 
-        style={{ marginTop: '1rem', backgroundColor: '#333333', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', cursor: isLoading ? 'default' : 'pointer' }}
+        disabled={isLoading || branch === 'main'} // Disable if either loading or on the main branch
+        style={{ 
+          marginTop: '1rem', 
+          backgroundColor: '#333333', 
+          color: '#ffffff', 
+          border: 'none', 
+          padding: '0.5rem 1rem', 
+          cursor: isLoading || branch === 'main' ? 'not-allowed' : 'pointer'  // Optional: change cursor when disabled
+        }}
       >
         {isLoading ? 'Loading...' : 'Revert'}
       </button>
