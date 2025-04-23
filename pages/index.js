@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect, useState } from 'react';
 import SettingsInputs from '../components/SettingsInputs'; // Updated import path
 import {
