@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
 import SettingsInputs from './SettingsInputs'; // Import the new SettingsInputs component
+import {
+  fetchRepoFileList,
+  fetchFileContent,
+  commitAndPushFile,
+  revertToPreviousCommit
+} from '../services/githubService';
 
 const functions = [ // Add back the functions
   {
@@ -76,152 +82,6 @@ export default function Home() {
     localStorage.setItem('branch', branch);
   }, [githubRepo, githubKey, openaiKey, branch]);
 
-  const fetchRepoFileList = async (repoUrl, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-    const res = await fetch(treeUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-    const data = await res.json();
-    return data.tree?.filter(item => item.type === 'blob').map(item => item.path) || [];
-  };
-
-  const fetchFileContent = async (repoUrl, filePath, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
-    const res = await fetch(fileUrl, {
-      headers: { Authorization: `token ${token}` },
-    });
-
-    if (!res.ok) throw new Error(`Error reading ${filePath}: ${res.status} ${res.statusText}`);
-
-    const data = await res.json();
-    if (data.encoding === 'base64') {
-      return atob(data.content);
-    } else {
-      return data.content;
-    }
-  };
-
-  const commitAndPushFile = async (repoUrl, filePath, newContent, commitMessage, token) => {
-    const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
-
-    let sha = null;
-
-    // First try-catch block for GET request to check if file exists
-    try {
-      const getRes = await fetch(fileUrl, {
-        headers: { Authorization: `token ${token}` },
-      });
-
-      if (getRes.ok) {
-        const getData = await getRes.json();
-        sha = getData.sha;
-      } else if (getRes.status === 404) {
-        console.log(`File ${filePath} does not exist, it will be created.`);
-      } else {
-        throw new Error(`Failed to fetch file details: ${getRes.status} ${getRes.statusText}`);
-      }
-    } catch (error) {
-      console.error(`Error fetching file details for ${filePath}: ${error.message}`);
-      return; // Exiting early as GET failed for unknown reason
-    }
-
-    // Second try-catch block for PUT request to commit file
-    try {
-      const headers = {
-        Authorization: `token ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      const body = JSON.stringify({
-        message: commitMessage,
-        content: btoa(newContent),
-        ...(sha ? { sha } : {}),
-        branch: branch,
-      });
-
-      const res = await fetch(fileUrl, {
-        method: 'PUT',
-        headers: headers,
-        body: body,
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed to commit ${filePath}: ${res.status} ${res.statusText}`);
-      } else {
-        console.info(`File ${filePath} committed successfully.`);
-      }
-    } catch (error) {
-      console.error(`Error committing file ${filePath}: ${error.message}`);
-    }
-  };
-
-  const revertToPreviousCommit = async () => {
-    setIsLoading(true); // Disable buttons by setting loading state
-    
-    try {
-      const [owner, repo] = githubRepo.replace('https://github.com/', '').split('/');
-      
-      // Step 1: Get previous commit hash
-      const commitsUrl = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}`;
-      const commitsRes = await fetch(commitsUrl, {
-        headers: { Authorization: `token ${githubKey}` },
-      });
-      const commitsData = await commitsRes.json();
-      if (commitsData.length < 2) throw new Error("No previous commit to revert to.");
-      
-      const previousCommitHash = commitsData[1].sha;
-      const swapBranchName = `temp-revert-${new Date().getTime()}`;
-
-      // Step 2: Create a temporary branch from the previous commit
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
-        method: 'POST',
-        headers: {
-          Authorization: `token ${githubKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ref: `refs/heads/${swapBranchName}`,
-          sha: previousCommitHash,
-        }),
-      });
-
-      // Step 3: Delete the current branch
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
-        method: 'DELETE',
-        headers: { Authorization: `token ${githubKey}` },
-      });
-
-      // Step 4: Recreate the original branch from the temporary swap
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
-        method: 'POST',
-        headers: {
-          Authorization: `token ${githubKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ref: `refs/heads/${branch}`,
-          sha: previousCommitHash,
-        }),
-      });
-
-      // Step 5: Delete the swap branch
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${swapBranchName}`, {
-        method: 'DELETE',
-        headers: { Authorization: `token ${githubKey}` },
-      });
-
-      // Step 6: Notify user
-      setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
-    } finally {
-      setIsLoading(false); // Re-enable buttons
-    }
-  };
-
   const sendMessage = async () => {
     try {
       setError(null);
@@ -234,7 +94,7 @@ export default function Home() {
 
       let fileListPrompt = '';
       if (isFirstSend) {
-        const fileList = await fetchRepoFileList(githubRepo, githubKey);
+        const fileList = await fetchRepoFileList(githubRepo, githubKey, branch);
         fileListPrompt = `Here's all the files in the repository:\n${fileList.join('\n')}`;
         const systemPrompt = { role: 'system', content: 'You are a helpful coding assistant.' };
         const fileListMessage = { role: 'user', content: fileListPrompt };
@@ -285,7 +145,7 @@ export default function Home() {
         ]);
 
         if (functionName === 'get_file_content') {
-          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey);
+          const fileContent = await fetchFileContent(githubRepo, functionArgs.file_path, githubKey, branch);
           const functionMsg = {
             role: 'function',
             name: functionName,
@@ -321,7 +181,8 @@ export default function Home() {
             functionArgs.file_path,
             functionArgs.new_content,
             functionArgs.commit_message,
-            githubKey
+            githubKey,
+            branch
           );
           setMessages(prev => [...prev, { role: 'assistant', content: 'File committed successfully.' }]);
           setChatHistory(updatedHistory.concat(message, {
@@ -395,7 +256,18 @@ export default function Home() {
       />
 
       <button 
-        onClick={revertToPreviousCommit} 
+        onClick={async () => {
+          setIsLoading(true); // Disable buttons by setting loading state
+          try {
+            const previousCommitHash = await revertToPreviousCommit(githubRepo, githubKey, branch);
+
+            setMessages(prev => [...prev, { role: 'system', content: `Reverted to commit: ${previousCommitHash}` }]);
+          } catch (error) {
+            setMessages(prev => [...prev, { role: 'system', content: `Error during revert: ${error.message}` }]);
+          } finally {
+            setIsLoading(false); // Re-enable buttons
+          }
+        }} 
         disabled={isLoading || branch === 'main'} // Disable if either loading or on the main branch
         style={{ 
           marginTop: '1rem', 
