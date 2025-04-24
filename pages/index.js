@@ -152,6 +152,10 @@ export default function Home() {
     }
   };
 
+  const handleSuccess = (successMessage) => {
+    setMessages(prev => [...prev, { role: 'system', content: successMessage }]);
+  };
+
   const handleRevert = async () => {
     setIsLoading(true);
     try {
@@ -208,6 +212,7 @@ export default function Home() {
         branch={branch}
         setBranch={setBranch}
         onError={setError}
+        onSuccess={handleSuccess} // Pass the onSuccess callback
       />
 
       <div style={{ backgroundColor: '#2e2e2e', padding: '1rem', marginTop: '1rem', borderRadius: '0.5rem' }}>
