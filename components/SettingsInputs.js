@@ -9,19 +9,20 @@ export default function SettingsInputs({
   openaiKey, 
   setOpenaiKey, 
   branch, 
-  setBranch 
+  setBranch,
+  onError 
 }) {
   
   const handleCreateBranch = async () => {
     if (githubRepo && githubKey && branch) {
       try {
         await createBranch(githubRepo, branch, githubKey);
-        alert(`Branch "${branch}" created successfully.`);
+        onError(`Branch "${branch}" created successfully.`);
       } catch (error) {
-        alert(`Failed to create branch: ${error.message}`);
+        onError(`Failed to create branch: ${error.message}`);
       }
     } else {
-      alert("Please fill in all the required fields: GitHub Repo URL, API Key, and Branch.");
+      onError("Please fill in all the required fields: GitHub Repo URL, API Key, and Branch.");
     }
   };
 
