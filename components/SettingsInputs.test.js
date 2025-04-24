@@ -2,6 +2,12 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SettingsInputs from './SettingsInputs';
+import { createBranch } from '../src/services/githubService';
+
+// Mock the createBranch function
+jest.mock('../src/services/githubService', () => ({
+  createBranch: jest.fn(),
+}));
 
 describe('SettingsInputs Component', () => {
   it('renders input fields with correct placeholders', () => {
@@ -48,5 +54,27 @@ describe('SettingsInputs Component', () => {
     expect(setGithubKey).toHaveBeenCalledWith('123');
     expect(setOpenaiKey).toHaveBeenCalledWith('abc');
     expect(setBranch).toHaveBeenCalledWith('main');
+  });
+
+  it('calls createBranch with correct arguments when button is clicked', async () => {
+    const githubRepo = 'https://github.com/owner/repo';
+    const githubKey = 'ghp_fakeToken123';
+    const branch = 'new-feature-branch';
+    
+    render(<SettingsInputs 
+      githubRepo={githubRepo} 
+      setGithubRepo={() => {}} 
+      githubKey={githubKey} 
+      setGithubKey={() => {}} 
+      openaiKey="" 
+      setOpenaiKey={() => {}} 
+      branch={branch} 
+      setBranch={() => {}} 
+    />);
+
+    const createButton = screen.getByText('Create Branch');
+    fireEvent.click(createButton);
+
+    expect(createBranch).toHaveBeenCalledWith(githubRepo, branch, githubKey);
   });
 });
