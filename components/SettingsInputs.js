@@ -9,15 +9,17 @@ export default function SettingsInputs({
   openaiKey, 
   setOpenaiKey, 
   branch, 
-  setBranch,
-  onError 
+  setBranch, 
+  onError, 
+  onSuccess // Add onSuccess callback
 }) {
   
   const handleCreateBranch = async () => {
     if (githubRepo && githubKey && branch) {
       try {
         await createBranch(githubRepo, branch, githubKey);
-        onError(`Branch "${branch}" created successfully.`);
+        // Use the onSuccess callback to set a message in the main chat
+        onSuccess(`Branch "${branch}" created successfully.`);
       } catch (error) {
         onError(`Failed to create branch: ${error.message}`);
       }
