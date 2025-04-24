@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SettingsInputs from './SettingsInputs';
 import { createBranch } from '../src/services/githubService';
@@ -20,6 +20,7 @@ describe('SettingsInputs Component', () => {
       setOpenaiKey={() => {}} 
       branch="" 
       setBranch={() => {}} 
+      onError={() => {}} // Add this line
     />);
 
     expect(screen.getByPlaceholderText('GitHub Repo URL')).toBeInTheDocument();
@@ -33,6 +34,7 @@ describe('SettingsInputs Component', () => {
     const setGithubKey = jest.fn();
     const setOpenaiKey = jest.fn();
     const setBranch = jest.fn();
+    const onError = jest.fn(); // Add this line
 
     render(<SettingsInputs 
       githubRepo="" 
@@ -43,6 +45,7 @@ describe('SettingsInputs Component', () => {
       setOpenaiKey={setOpenaiKey} 
       branch="" 
       setBranch={setBranch} 
+      onError={onError} // Add this line
     />);
 
     fireEvent.change(screen.getByPlaceholderText('GitHub Repo URL'), { target: { value: 'https://github.com' } });
@@ -60,6 +63,7 @@ describe('SettingsInputs Component', () => {
     const githubRepo = 'https://github.com/owner/repo';
     const githubKey = 'ghp_fakeToken123';
     const branch = 'new-feature-branch';
+    const onError = jest.fn(); // Add this line
     
     render(<SettingsInputs 
       githubRepo={githubRepo} 
@@ -70,6 +74,7 @@ describe('SettingsInputs Component', () => {
       setOpenaiKey={() => {}} 
       branch={branch} 
       setBranch={() => {}} 
+      onError={onError} // Add this line
     />);
 
     const createButton = screen.getByText('Create Branch');
