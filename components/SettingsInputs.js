@@ -11,14 +11,13 @@ export default function SettingsInputs({
   branch, 
   setBranch, 
   onError, 
-  onSuccess // Add onSuccess callback
+  onSuccess 
 }) {
   
   const handleCreateBranch = async () => {
     if (githubRepo && githubKey && branch) {
       try {
         await createBranch(githubRepo, branch, githubKey);
-        // Use the onSuccess callback to set a message in the main chat
         onSuccess(`Branch "${branch}" created successfully.`);
       } catch (error) {
         onError(`Failed to create branch: ${error.message}`);
@@ -58,7 +57,16 @@ export default function SettingsInputs({
       />
       <button
         onClick={handleCreateBranch}
-        style={{ display: 'block', width: '100%', marginTop: '16px', padding: '8px', backgroundColor: '#0066ff', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        style={{
+          backgroundColor: '#333333',
+          color: '#ffffff',
+          border: 'none',
+          width: '100%',
+          padding: '0.5rem 1rem',
+          marginTop: '16px',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
       >
         Create Branch
       </button>
