@@ -207,6 +207,7 @@ export default function Home() {
         setOpenaiKey={setOpenaiKey}
         branch={branch}
         setBranch={setBranch}
+        onError={setError}
       />
 
       <div style={{ backgroundColor: '#2e2e2e', padding: '1rem', marginTop: '1rem', borderRadius: '0.5rem' }}>

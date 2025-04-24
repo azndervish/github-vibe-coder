@@ -1,5 +1,3 @@
-// githubService.js
-
 /**
  * Fetch the list of files in a GitHub repository.
  * 
@@ -218,5 +216,54 @@ export async function deleteFile(repoUrl, filePath, commitMessage, token, branch
     }
   } catch (error) {
     console.error(`Error deleting file ${filePath}: ${error.message}`);
+  }
+}
+
+/**
+ * Create a new branch in a GitHub repository.
+ * 
+ * @param {string} repoUrl - The GitHub repository URL.
+ * @param {string} newBranchName - The name of the new branch to create.
+ * @param {string} token - The GitHub access token.
+ * @returns {Promise<void>}
+ */
+export async function createBranch(repoUrl, newBranchName, token) {
+  const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/');
+  
+  try {
+    // Step 1: Get the latest commit's SHA from the default branch
+    const defaultBranchUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/main`;
+    const defaultBranchRes = await fetch(defaultBranchUrl, {
+      headers: { Authorization: `token ${token}` },
+    });
+    
+    if (!defaultBranchRes.ok) {
+      throw new Error(`Failed to fetch default branch: ${defaultBranchRes.status} ${defaultBranchRes.statusText}`);
+    }
+    
+    const defaultBranchData = await defaultBranchRes.json();
+    const latestCommitSha = defaultBranchData.object.sha;
+
+    // Step 2: Create a new branch from the latest commit of the default branch
+    const createBranchUrl = `https://api.github.com/repos/${owner}/${repo}/git/refs`;
+    const createBranchRes = await fetch(createBranchUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ref: `refs/heads/${newBranchName}`,
+        sha: latestCommitSha,
+      }),
+    });
+
+    if (!createBranchRes.ok) {
+      throw new Error(`Failed to create branch ${newBranchName}: ${createBranchRes.status} ${createBranchRes.statusText}`);
+    } else {
+      console.info(`Branch ${newBranchName} created successfully.`);
+    }
+  } catch (error) {
+    console.error(`Error creating branch ${newBranchName}: ${error.message}`);
   }
 }
