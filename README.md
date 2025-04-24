@@ -1,5 +1,7 @@
 # GitHub OpenAI Assistant
 
+**The app is deployed at:** [https://azndervish.github.io/github-vibe-coder/](https://azndervish.github.io/github-vibe-coder/)
+
 This project was built to simplify editing code in GitHub on a mobile device. It serves as a human-in-the-loop AI agent, allowing users to interactively edit code with the assistance of OpenAI's language models while directly managing GitHub repositories.
 
 ## Features
