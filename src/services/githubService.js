@@ -12,6 +12,9 @@ export async function fetchRepoFileList(repoUrl, token, branch) {
   const res = await fetch(treeUrl, {
     headers: { Authorization: `token ${token}` },
   });
+
+  if (!res.ok) throw new Error(`Error fetching file list: ${res.status} ${res.statusText}`);
+
   const data = await res.json();
   return data.tree?.filter(item => item.type === 'blob').map(item => item.path) || [];
 }
